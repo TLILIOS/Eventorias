@@ -60,17 +60,38 @@ final class EventDetailsViewModel: ObservableObject {
         errorMessage = ""
         showingError = false
         
+        print("📱 EventDetailsViewModel: Chargement de l'événement avec ID \(eventID)")
+        
+        // Vérifier si l'ID est vide
+        if eventID.isEmpty {
+            errorMessage = "ID d'événement invalide"
+            showingError = true
+            isLoading = false
+            print("❌ EventDetailsViewModel: ID d'événement vide")
+            return
+        }
+        
         do {
+            // Essayer de récupérer l'événement depuis Firestore
             let documentSnapshot = try await db.collection("events").document(eventID).getDocument()
             
-            guard documentSnapshot.exists else {
-                throw NSError(domain: "EventDetailsViewModel",
-                              code: 404,
-                              userInfo: [NSLocalizedDescriptionKey: "Événement introuvable"])
+            // Si l'événement existe dans Firestore
+            if documentSnapshot.exists {
+                print("📱 EventDetailsViewModel: Événement trouvé dans Firestore")
+                let fetchedEvent = try documentSnapshot.data(as: Event.self)
+                event = fetchedEvent
+            } else {
+                // Si non trouvé dans Firestore, chercher dans les données d'exemple
+                print("📱 EventDetailsViewModel: Événement non trouvé dans Firestore, recherche dans les exemples")
+                if let sampleEvent = Event.sampleEvents.first(where: { $0.id == eventID }) {
+                    print("📱 EventDetailsViewModel: Événement trouvé dans les données d'exemple")
+                    event = sampleEvent
+                } else {
+                    throw NSError(domain: "EventDetailsViewModel",
+                                  code: 404,
+                                  userInfo: [NSLocalizedDescriptionKey: "Événement introuvable avec l'ID \(eventID)"])
+                }
             }
-            
-            let fetchedEvent = try documentSnapshot.data(as: Event.self)
-            event = fetchedEvent
             
             // Géocoder l'adresse
             await geocodeEventLocation()

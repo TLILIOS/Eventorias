@@ -26,25 +26,38 @@ struct EventDetailsView: View {
                     .scaleEffect(1.2)
             } else if let event = viewModel.event {
                 // Contenu principal
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Image principale de l'événement
-                        eventImageSection(event)
+                // Utilisation de GeometryReader pour contraindre strictement la largeur
+                GeometryReader { geo in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Contenu dans un cadre avec largeur exacte
+                            VStack(alignment: .leading, spacing: 0) {
+                                // Image principale de l'événement
+                                eventImageSection(event)
+                                
+                                // Informations de date et heure
+                                dateTimeSection(event)
+                                
+                                // Description de l'événement
+                                descriptionSection(event)
+                                
+                                // Adresse avec carte
+                                locationSection(event)
+                            }
+                            .frame(width: geo.size.width) // Force la largeur exacte de l'écran
+                            .background(Color.black)
+                            .overlay(
+                                Rectangle()
+                                    .strokeBorder(Color.gray.opacity(0.5), lineWidth: 1)
+                            )
                         
-                        // Informations de date et heure
-                        dateTimeSection(event)
-                        
-                        // Description de l'événement
-                        descriptionSection(event)
-                        
-                        // Adresse avec carte
-                        locationSection(event)
-                        
-                        // Espacement en bas
-                        Color.clear.frame(height: 30)
+                            // Espacement en bas
+                            Color.clear.frame(height: 16)
+                        }
                     }
+                    .frame(width: geo.size.width) // Contraindre la ScrollView également
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
             } else {
                 // Vue d'erreur
                 ContentUnavailableView {
@@ -137,72 +150,63 @@ struct EventDetailsView: View {
     
     /// Section date et heure
     private func dateTimeSection(_ event: Event) -> some View {
-        HStack(alignment: .center, spacing: 16) {
-            // Date card
-            VStack(alignment: .center) {
-                Text(viewModel.formattedEventDay())
-                    .font(.system(size: 24, weight: .bold))
+        VStack(alignment: .leading, spacing: 16) {
+            // Date avec icône calendrier
+            HStack(spacing: 8) {
+                Image(systemName: "calendar")
                     .foregroundStyle(.white)
+                    .frame(width: 20)
                 
-                Text(viewModel.formattedEventMonth().uppercased())
-                    .font(.system(size: 14, weight: .semibold))
+                Text(viewModel.formattedEventDate())
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.white)
-                    .padding(.top, -5)
+            }
+            
+            // Heure avec icône horloge
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .foregroundStyle(.white)
+                    .frame(width: 20)
                 
-                Text(String(Calendar.current.component(.year, from: event.date)))
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .padding(.top, -5)
+                Text(viewModel.formattedEventTime())
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.white)
             }
-            .frame(width: 70, height: 80)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color("DarkGry"))
-            )
-            .padding(.leading, 16)
             
-            // Time
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock")
-                        .foregroundStyle(.white)
-                    
-                    Text(viewModel.formattedEventTime())
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white)
+            // Organisateur - placé en bas
+            HStack {
+                Spacer()
+                
+                AsyncImage(url: URL(string: event.organizerImageURL ?? "")) { phase in
+                    switch phase {
+                    case .empty:
+                        Circle()
+                            .fill(Color.black.opacity(0.4))
+                            .overlay {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            }
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .failure:
+                        Circle()
+                            .fill(Color.black.opacity(0.4))
+                            .overlay {
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 20))
+                            }
+                    @unknown default:
+                        EmptyView()
+                    }
                 }
+                .frame(width: 48, height: 48)
+                .clipShape(Circle())
             }
-            
-            Spacer()
-            
-            // Organisateur
-            AsyncImage(url: URL(string: event.organizerImageURL ?? "")) { phase in
-                switch phase {
-                case .empty:
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay {
-                            ProgressView()
-                        }
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .failure:
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay {
-                            Image(systemName: "person.fill")
-                                .foregroundColor(.white)
-                        }
-                @unknown default:
-                    EmptyView()
-                }
-            }
-            .frame(width: 48, height: 48)
-            .clipShape(Circle())
-            .padding(.trailing, 16)
         }
+        .padding(.horizontal, 16)
         .padding(.vertical, 16)
         .background(Color.black)
     }
@@ -214,6 +218,7 @@ struct EventDetailsView: View {
             Text(event.category.uppercased())
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white)
+                .lineLimit(1) // Limiter à une seule ligne
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
@@ -227,6 +232,8 @@ struct EventDetailsView: View {
                 .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(.white)
                 .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true) // Fix pour éviter le débordement horizontal
+                .frame(maxWidth: .infinity, alignment: .leading) // Contrainte de largeur stricte
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 16)
@@ -243,17 +250,30 @@ struct EventDetailsView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             
-            // Address details
-            Text(event.location)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineSpacing(2)
-                .padding(.horizontal, 16)
-            
-            // Map
-            mapView(event)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+            // Address and Map - side by side
+            HStack(alignment: .top, spacing: 12) {
+                // Address details
+                VStack(alignment: .leading) {
+                    Text(event.location)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineSpacing(2) 
+                        .lineLimit(nil) // Autoriser plusieurs lignes
+                        .fixedSize(horizontal: false, vertical: true) // Fix pour éviter le débordement horizontal
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.trailing, 8)
+                }
+                .frame(width: UIScreen.main.bounds.width * 0.4)
+                .padding(.leading, 16)
+                
+                // Map
+                mapView(event)
+                    .frame(width: UIScreen.main.bounds.width * 0.45)
+                    .cornerRadius(12)
+                    .clipped()
+                    .padding(.trailing, 16)
+            }
+            .padding(.vertical, 12)
         }
         .padding(.top, 16)
     }
@@ -264,8 +284,7 @@ struct EventDetailsView: View {
             if viewModel.isLoadingMap {
                 Rectangle()
                     .fill(Color("DarkGry"))
-                    .frame(height: 180)
-                    .cornerRadius(12)
+                    .frame(height: 150)
                     .overlay {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -291,8 +310,8 @@ struct EventDetailsView: View {
                             .overlay {
                                 VStack(spacing: 8) {
                                     Image(systemName: "map")
-                                        .font(.system(size: 32))
-                                    Text("Impossible de charger la carte")
+                                        .font(.system(size: 24))
+                                    Text("Erreur carte")
                                         .font(.caption)
                                 }
                                 .foregroundColor(.white.opacity(0.7))
@@ -301,29 +320,29 @@ struct EventDetailsView: View {
                         EmptyView()
                     }
                 }
-                .frame(height: 180)
-                .cornerRadius(12)
+                .frame(height: 150)
+                .cornerRadius(8)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 )
             } else {
                 // Fallback map placeholder
                 Rectangle()
                     .fill(Color("DarkGry"))
-                    .frame(height: 180)
-                    .cornerRadius(12)
+                    .frame(height: 150)
+                    .cornerRadius(8)
                     .overlay {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 6) {
                             Image(systemName: "map")
-                                .font(.system(size: 32))
+                                .font(.system(size: 24))
                             
                             if !viewModel.isMapAPIKeyConfigured {
-                                Text("Clé API Google Maps non configurée")
-                                    .font(.caption)
+                                Text("API non configurée")
+                                    .font(.caption2)
                             } else {
-                                Text("Impossible d'afficher la carte")
-                                    .font(.caption)
+                                Text("Carte indisponible")
+                                    .font(.caption2)
                             }
                         }
                         .foregroundColor(.white.opacity(0.7))
