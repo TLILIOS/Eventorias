@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import Firebase
 import FirebaseAuth
+import FirebaseStorage
 
 @MainActor
 final class AuthenticationViewModel: ObservableObject {
@@ -32,6 +33,15 @@ final class AuthenticationViewModel: ObservableObject {
     
     /// Mot de passe saisi par l'utilisateur
     @Published var password = ""
+    
+    /// Nom d'utilisateur (uniquement pour l'inscription)
+    @Published var username = ""
+    
+    /// Image de profil (uniquement pour l'inscription)
+    @Published var profileImage: UIImage? = nil
+    
+    /// État d'upload de l'image
+    @Published var isUploadingImage = false
     
     // MARK: - Private Properties
     
@@ -57,7 +67,17 @@ final class AuthenticationViewModel: ObservableObject {
     
     /// Vérifie si le formulaire est valide
     var isFormValid: Bool {
-        authService.isValidEmail(email) && authService.isValidPassword(password)
+        // Validation de base pour email et mot de passe
+        let basicValidation = authService.isValidEmail(email) && authService.isValidPassword(password)
+        
+        // Pour l'inscription, vérifier aussi le nom d'utilisateur
+        return basicValidation
+    }
+    
+    /// Vérifie si le formulaire d'inscription est complet
+    var isSignUpFormValid: Bool {
+        let basicValidation = authService.isValidEmail(email) && authService.isValidPassword(password)
+        return basicValidation && !username.isEmpty
     }
     
     /// Indique si on a un utilisateur Firebase mais qu'on affiche quand même l'écran de connexion
@@ -129,6 +149,56 @@ final class AuthenticationViewModel: ObservableObject {
     private func clearForm() {
         email = ""
         password = ""
+        username = ""
+        profileImage = nil
+    }
+    
+    /// Upload l'image de profil vers Firebase Storage et met à jour le profil utilisateur
+    /// - Parameter completion: Callback appelé après completion avec succès (true) ou échec (false)
+    func uploadProfileImageAndUpdateUser(completion: @escaping (Bool) -> Void) async {
+        guard let currentUser = Auth.auth().currentUser, let image = profileImage else {
+            completion(false)
+            return
+        }
+        
+        isUploadingImage = true
+        
+        do {
+            // 1. Compresser l'image
+            guard let imageData = image.jpegData(compressionQuality: 0.6) else {
+                throw NSError(domain: "ImageCompression", code: 0, userInfo: [NSLocalizedDescriptionKey: "Échec de compression de l'image"])
+            }
+            
+            // 2. Créer une référence Firebase Storage
+            let storageRef = FirebaseStorage.Storage.storage().reference().child("profile_images/\(currentUser.uid).jpg")
+            
+            // 3. Uploader l'image
+            let metadata = FirebaseStorage.StorageMetadata()
+            metadata.contentType = "image/jpeg"
+            
+            _ = try await storageRef.putDataAsync(imageData, metadata: metadata)
+            
+            // 4. Récupérer l'URL de téléchargement
+            let downloadURL = try await storageRef.downloadURL()
+            
+            // 5. Mettre à jour le profil utilisateur
+            let changeRequest = currentUser.createProfileChangeRequest()
+            changeRequest.displayName = username
+            changeRequest.photoURL = downloadURL
+            try await changeRequest.commitChanges()
+            
+            DispatchQueue.main.async {
+                self.isUploadingImage = false
+                completion(true)
+            }
+        } catch {
+            DispatchQueue.main.async {
+                self.isUploadingImage = false
+                self.errorMessage = "Échec de l'upload: \(error.localizedDescription)"
+                self.showingError = true
+                completion(false)
+            }
+        }
     }
     
     // MARK: - Public Methods
@@ -154,13 +224,34 @@ final class AuthenticationViewModel: ObservableObject {
         // Sauvegarder les identifiants temporairement pour pouvoir les utiliser après l'authentification
         let emailToStore = self.email 
         let passwordToStore = self.password
+        let usernameToStore = self.username
+        let profileImageToStore = self.profileImage
         
-        await performAuthAction {
-            try await authService.signUp(email: emailToStore, password: passwordToStore)
-        }
+        await performAuthAction { try await authService.signUp(email: emailToStore, password: passwordToStore) }
         
-        // Stocker les identifiants après une inscription réussie
-        if isAuthenticated {
+        // Si l'inscription a réussi et qu'il y a une photo de profil ou un nom d'utilisateur
+        if isAuthenticated && (profileImageToStore != nil || !usernameToStore.isEmpty) {
+            // Mettre à jour le profil utilisateur avec le nom d'utilisateur et l'image
+            if profileImageToStore != nil {
+                await uploadProfileImageAndUpdateUser { _ in }
+            } else if !usernameToStore.isEmpty {
+                // Mettre à jour uniquement le nom d'utilisateur si pas d'image
+                if let currentUser = Auth.auth().currentUser {
+                    do {
+                        let changeRequest = currentUser.createProfileChangeRequest()
+                        changeRequest.displayName = usernameToStore
+                        try await changeRequest.commitChanges()
+                    } catch {
+                        errorMessage = "Échec de mise à jour du profil: \(error.localizedDescription)"
+                        showingError = true
+                    }
+                }
+            }
+            
+            // Stocker les identifiants dans le Keychain si l'authentification a réussi
+            storeCredentialsExplicit(email: emailToStore, password: passwordToStore)
+        } else if isAuthenticated {
+            // Stocker les identifiants si l'authentification a réussi mais pas d'image ni de nom
             storeCredentialsExplicit(email: emailToStore, password: passwordToStore)
         }
     }

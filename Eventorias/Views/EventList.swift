@@ -179,8 +179,11 @@ struct EventList: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 12) {
                 ForEach(eventViewModel.filteredEvents) { event in
-                    EventRowView(event: event)
-                        .padding(.horizontal, 16)
+                    NavigationLink(destination: EventDetailsView(eventID: event.id ?? "")) {
+                        EventRowView(event: event)
+                            .padding(.horizontal, 16)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.top, 8)

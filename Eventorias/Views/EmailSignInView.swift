@@ -7,12 +7,16 @@
 
 import SwiftUI
 import Firebase
+import FirebaseStorage
+import PhotosUI
 
 struct EmailSignInView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var viewModel: AuthenticationViewModel
     
     @State private var isSignUp = false
+    @State private var showImagePicker = false
+    @State private var selectedImage: UIImage? = nil
     
     var body: some View {
         NavigationStack {
@@ -62,6 +66,34 @@ struct EmailSignInView: View {
             .onAppear {
                 viewModel.loadStoredCredentials()
             }
+            .sheet(isPresented: $showImagePicker) {
+                PhotosPicker(
+                    selection: Binding<PhotosPickerItem?>(get: { nil }, set: { newValue in
+                        if let newValue {
+                            Task {
+                                if let data = try? await newValue.loadTransferable(type: Data.self),
+                                   let image = UIImage(data: data) {
+                                    DispatchQueue.main.async {
+                                        self.selectedImage = image
+                                        self.viewModel.profileImage = image
+                                    }
+                                }
+                            }
+                        }
+                    }),
+                    matching: .images
+                ) {
+                    Text("Sélectionner une photo")
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color("Red"))
+                        .cornerRadius(10)
+                        .padding()
+                }
+                .presentationBackground(Color.black)
+                .presentationDetents([.medium])
+            }
         }
     }
     
@@ -78,6 +110,68 @@ struct EmailSignInView: View {
     
     private var formFields: some View {
         VStack(spacing: 25) {
+            // Champs spécifiques au mode création de compte
+            if isSignUp {
+                // Sélection photo de profil
+                VStack(spacing: 15) {
+                    Button(action: {
+                        showImagePicker = true
+                    }) {
+                        if let image = selectedImage ?? viewModel.profileImage {
+                            // Afficher l'image sélectionnée
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 100, height: 100)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                        } else {
+                            // Afficher une image par défaut ou un placeholder
+                            ZStack {
+                                Circle()
+                                    .fill(Color("DarkGry"))
+                                    .frame(width: 100, height: 100)
+                                
+                                Image(systemName: "person.fill")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 40, height: 40)
+                                    .foregroundColor(.gray)
+                                
+                                Image(systemName: "plus.circle.fill")
+                                    .resizable()
+                                    .frame(width: 30, height: 30)
+                                    .foregroundColor(Color("Red"))
+                                    .background(Color.black)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.black, lineWidth: 2))
+                                    .offset(x: 35, y: 35)
+                            }
+                        }
+                    }
+                    .padding(.top, 10)
+                    
+                    Text(selectedImage == nil ? "Ajouter une photo" : "Modifier la photo")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color("Red"))
+                }
+                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, alignment: .center)
+                
+                // Champ nom d'utilisateur
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Nom d'utilisateur")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.gray)
+                    
+                    StyledTextField(placeholder: "Entrez votre nom d'utilisateur", text: $viewModel.username)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .textContentType(.username)
+                        .accessibilityLabel("Champ nom d'utilisateur")
+                }
+            }
+            
             // Champ email
             VStack(alignment: .leading, spacing: 8) {
                 Text("Email")
@@ -109,7 +203,7 @@ struct EmailSignInView: View {
             // Bouton principal
             Button(action: handleAuthentication) {
                 HStack {
-                    if viewModel.isLoading {
+                    if viewModel.isLoading || viewModel.isUploadingImage {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(0.8)
@@ -121,10 +215,10 @@ struct EmailSignInView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(viewModel.isFormValid ? Color("Red") : Color.gray)
+                .background(isFormValid ? Color("Red") : Color.gray)
                 .cornerRadius(10)
             }
-            .disabled(!viewModel.isFormValid || viewModel.isLoading)
+            .disabled(!isFormValid || viewModel.isLoading || viewModel.isUploadingImage)
             
             // Lien pour basculer entre connexion et inscription
             Button(action: { isSignUp.toggle() }) {
@@ -138,12 +232,27 @@ struct EmailSignInView: View {
     }
     
     private func handleAuthentication() {
+        // Mettre à jour l'image de profil dans le ViewModel
+        if isSignUp {
+            viewModel.profileImage = selectedImage
+        }
+        
         Task {
             if isSignUp {
                 await viewModel.signUp()
             } else {
                 await viewModel.signIn()
             }
+        }
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var isFormValid: Bool {
+        if isSignUp {
+            return viewModel.isSignUpFormValid
+        } else {
+            return viewModel.isFormValid
         }
     }
 }
