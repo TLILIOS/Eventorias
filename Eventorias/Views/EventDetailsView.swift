@@ -16,50 +16,24 @@ struct EventDetailsView: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            // Fond noir
             Color.black.ignoresSafeArea()
             
             if viewModel.isLoading {
-                // Vue de chargement
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .scaleEffect(1.2)
             } else if let event = viewModel.event {
-                // Contenu principal
-                // Utilisation de GeometryReader pour contraindre strictement la largeur
-                GeometryReader { geo in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Contenu dans un cadre avec largeur exacte
-                            VStack(alignment: .leading, spacing: 0) {
-                                // Image principale de l'événement
-                                eventImageSection(event)
-                                
-                                // Informations de date et heure
-                                dateTimeSection(event)
-                                
-                                // Description de l'événement
-                                descriptionSection(event)
-                                
-                                // Adresse avec carte
-                                locationSection(event)
-                            }
-                            .frame(width: geo.size.width) // Force la largeur exacte de l'écran
-                            .background(Color.black)
-                            .overlay(
-                                Rectangle()
-                                    .strokeBorder(Color.gray.opacity(0.5), lineWidth: 1)
-                            )
-                        
-                            // Espacement en bas
-                            Color.clear.frame(height: 16)
-                        }
+                    VStack(alignment: .leading, spacing: 0) {
+                        eventImageSection(event)
+                        dateTimeSection(event)
+                        descriptionSection(event)
+                        Spacer()
+                        locationSection(event)
+//                        Color.clear.frame(height: 16)
                     }
-                    .frame(width: geo.size.width) // Contraindre la ScrollView également
-                    .scrollIndicators(.hidden)
-                }
+                    .background(Color.black)
+              
             } else {
-                // Vue d'erreur
                 ContentUnavailableView {
                     Label("Événement non disponible", systemImage: "exclamationmark.triangle")
                 } description: {
@@ -109,7 +83,6 @@ struct EventDetailsView: View {
     /// Section image de l'événement
     private func eventImageSection(_ event: Event) -> some View {
         ZStack(alignment: .bottom) {
-            // Image de l'événement
             AsyncImage(url: URL(string: event.imageURL ?? "")) { phase in
                 switch phase {
                 case .empty:
@@ -138,7 +111,6 @@ struct EventDetailsView: View {
             .frame(height: 280)
             .clipped()
             
-            // Dégradé pour meilleure lisibilité
             LinearGradient(
                 gradient: Gradient(colors: [Color.black.opacity(0.0), Color.black.opacity(0.5)]),
                 startPoint: .top,
@@ -150,133 +122,116 @@ struct EventDetailsView: View {
     
     /// Section date et heure
     private func dateTimeSection(_ event: Event) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Date avec icône calendrier
-            HStack(spacing: 8) {
-                Image(systemName: "calendar")
-                    .foregroundStyle(.white)
-                    .frame(width: 20)
+        HStack(alignment: .top, spacing: 16) {
+            // Section date et heure (côté gauche)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(.white)
+                        .frame(width: 20)
+                    
+                    Text(viewModel.formattedEventDate())
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
                 
-                Text(viewModel.formattedEventDate())
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white)
+                HStack(spacing: 8) {
+                    Image(systemName: "clock")
+                        .foregroundStyle(.white)
+                        .frame(width: 20)
+                    
+                    Text(viewModel.formattedEventTime())
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
             }
+            .layoutPriority(1)
             
-            // Heure avec icône horloge
-            HStack(spacing: 8) {
-                Image(systemName: "clock")
-                    .foregroundStyle(.white)
-                    .frame(width: 20)
-                
-                Text(viewModel.formattedEventTime())
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white)
-            }
+            Spacer(minLength: 8)
             
-            // Organisateur - placé en bas
-            HStack {
-                Spacer()
+            // Image de profil de l'organisateur (côté droit)
+            profileImage(event)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .background(Color.black)
+    }
+    
+    /// Image de profil de l'organisateur
+    private func profileImage(_ event: Event) -> some View {
+        ZStack {
+            Circle()
+                .fill(Color.black.opacity(0.4))
                 
-                AsyncImage(url: URL(string: event.organizerImageURL ?? "")) { phase in
+            if let imageURL = URL(string: event.organizerImageURL ?? "") {
+                AsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .empty:
-                        Circle()
-                            .fill(Color.black.opacity(0.4))
-                            .overlay {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            }
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     case .success(let image):
                         image
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .scaledToFill()
                     case .failure:
-                        Circle()
-                            .fill(Color.black.opacity(0.4))
-                            .overlay {
-                                Image(systemName: "person.fill")
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 20))
-                            }
+                        Image(systemName: "person.fill")
+                            .foregroundColor(.white)
+                            .font(.system(size: 20))
                     @unknown default:
                         EmptyView()
                     }
                 }
                 .frame(width: 48, height: 48)
                 .clipShape(Circle())
+            } else {
+                Image(systemName: "person.fill")
+                    .foregroundColor(.white)
+                    .font(.system(size: 20))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
-        .background(Color.black)
+        .frame(width: 48, height: 48)
+        .layoutPriority(0)
     }
     
     /// Section description
     private func descriptionSection(_ event: Event) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Catégorie
-            Text(event.category.uppercased())
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-                .lineLimit(1) // Limiter à une seule ligne
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(viewModel.colorForCategory())
-                )
-                .padding(.leading, 16)
-            
-            // Description
             Text(event.description)
                 .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(.white)
                 .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true) // Fix pour éviter le débordement horizontal
-                .frame(maxWidth: .infinity, alignment: .leading) // Contrainte de largeur stricte
+                .multilineTextAlignment(.leading)
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
                 .padding(.bottom, 16)
         }
     }
     
-    /// Section localisation
+   
+   
     private func locationSection(_ event: Event) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Address heading
-            Text("Lieu")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-            
-            // Address and Map - side by side
-            HStack(alignment: .top, spacing: 12) {
-                // Address details
-                VStack(alignment: .leading) {
-                    Text(event.location)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineSpacing(2) 
-                        .lineLimit(nil) // Autoriser plusieurs lignes
-                        .fixedSize(horizontal: false, vertical: true) // Fix pour éviter le débordement horizontal
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.trailing, 8)
-                }
-                .frame(width: UIScreen.main.bounds.width * 0.4)
-                .padding(.leading, 16)
-                
-                // Map
-                mapView(event)
-                    .frame(width: UIScreen.main.bounds.width * 0.45)
-                    .cornerRadius(12)
-                    .clipped()
-                    .padding(.trailing, 16)
+        HStack(alignment: .top, spacing: 12) {
+            // Adresse à gauche
+            VStack(alignment: .leading) {
+                Text(event.location)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineSpacing(2)
+                    .multilineTextAlignment(.leading)
             }
-            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            mapView(event)
+                .frame(width: UIScreen.main.bounds.width * 0.45, height: 150)
+                .cornerRadius(12)
+                .clipped()
         }
-        .padding(.top, 16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
+
     
     /// Vue de la carte
     private func mapView(_ event: Event) -> some View {
@@ -284,13 +239,12 @@ struct EventDetailsView: View {
             if viewModel.isLoadingMap {
                 Rectangle()
                     .fill(Color("DarkGry"))
-                    .frame(height: 150)
+                    .frame(height: 200)
                     .overlay {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     }
             } else if let mapImageURL = viewModel.mapImageURL, viewModel.isMapAPIKeyConfigured {
-                // Carte Google Maps Static
                 AsyncImage(url: mapImageURL) { phase in
                     switch phase {
                     case .empty:
@@ -320,17 +274,14 @@ struct EventDetailsView: View {
                         EmptyView()
                     }
                 }
-                .frame(height: 150)
-                .cornerRadius(8)
+                .clipped()
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 )
             } else {
-                // Fallback map placeholder
                 Rectangle()
                     .fill(Color("DarkGry"))
-                    .frame(height: 150)
                     .cornerRadius(8)
                     .overlay {
                         VStack(spacing: 6) {
@@ -349,7 +300,6 @@ struct EventDetailsView: View {
                     }
             }
             
-            // Pin de localisation
             if viewModel.coordinates != nil {
                 VStack {
                     Spacer()
@@ -375,9 +325,9 @@ struct EventDetailsView: View {
 }
 
 // MARK: - Preview
-
 #Preview {
     NavigationStack {
-        EventDetailsView(eventID: Event.sampleEvents.first?.id ?? "")
+        EventDetailsView(eventID: (Event.sampleEvents.indices.contains(2) ? Event.sampleEvents[2].id : "")!)
+
     }
 }

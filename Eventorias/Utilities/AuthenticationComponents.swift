@@ -26,7 +26,6 @@ struct EmailSection: View {
     }
 }
 
-/// Section pour la saisie du mot de passe
 struct PasswordSection: View {
     @Binding var password: String
     @State private var isPasswordVisible = false

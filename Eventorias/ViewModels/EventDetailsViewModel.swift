@@ -152,7 +152,7 @@ final class EventDetailsViewModel: ObservableObject {
     
     /// Vérifie si l'API key est définie
     var isMapAPIKeyConfigured: Bool {
-        return googleMapsAPIKey != "YOUR_GOOGLE_MAPS_API_KEY"
+        return googleMapsAPIKey != "To do"
     }
     
     /// Formate la date de l'événement
@@ -187,10 +187,12 @@ final class EventDetailsViewModel: ObservableObject {
         guard let event = event else { return "" }
         
         let formatter = DateFormatter()
-        formatter.dateStyle = .full
-        formatter.timeStyle = .short
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        formatter.locale = Locale(identifier: "en_US")
         return formatter.string(from: event.date)
     }
+
     
     /// Génère un tag de couleur pour une catégorie
     func colorForCategory() -> Color {

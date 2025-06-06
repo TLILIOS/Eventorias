@@ -5,6 +5,7 @@
 //  Created by TLiLi Hamdi on 27/05/2025.
 //
 import SwiftUI
+import Combine
 
 struct EventList: View {
     // MARK: - Properties
@@ -19,6 +20,23 @@ struct EventList: View {
     // MARK: - Body
     var body: some View {
         ZStack {
+            // Afficher LoadingView si en chargement
+            if eventViewModel.isLoading {
+                LoadingView()
+            }
+            
+            // Afficher ErrorViewWithTabBar si erreur
+            if eventViewModel.showingError {
+                ErrorViewWithTabBar(
+                    errorMessage: eventViewModel.errorMessage,
+                    onRetry: {
+                        eventViewModel.dismissError()
+                        Task {
+                            await eventViewModel.fetchEvents()
+                        }
+                    }
+                )
+            }
             // Afficher la vue en fonction de l'onglet sélectionné
             if selectedTab == 0 {
                 NavigationStack {
@@ -37,9 +55,11 @@ struct EventList: View {
                     }
                     .overlay {
                         if eventViewModel.isLoading {
-                            ProgressView("Chargement...")
-                                .progressViewStyle(.circular)
-                                .background(Color(UIColor.systemBackground).opacity(0.7))
+                            // Nous utilisons ZStack avec condition pour maintenir la hiérarchie de vue existante
+                            ZStack {
+                                Color.black.opacity(0.01) // Presque transparent
+                            }
+                                .background(Color(UIColor.systemBackground).opacity(0.01))
                         }
                     }
                     .overlay {
@@ -65,7 +85,7 @@ struct EventList: View {
                     }
                     Button("Annuler", role: .cancel) {}
                 }
-                .alert("Erreur", isPresented: $eventViewModel.showingError) {
+                .alert("Erreur", isPresented: .constant(false)) {
                     Button("OK") { eventViewModel.dismissError() }
                 } message: {
                     Text(eventViewModel.errorMessage)
@@ -187,7 +207,7 @@ struct EventList: View {
                 }
             }
             .padding(.top, 8)
-            .padding(.bottom, 100) // Nécessaire pour l'espace au-dessus de la TabBar
+            .padding(.bottom, 100) 
         }
         .refreshable {
             Task {
