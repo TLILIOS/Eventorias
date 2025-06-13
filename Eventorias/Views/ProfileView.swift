@@ -9,9 +9,23 @@ import FirebaseAuth
 
 struct ProfileView: View {
     @EnvironmentObject private var authViewModel: AuthenticationViewModel
+    @StateObject private var profileViewModel: ProfileViewModel
     @State private var notificationsEnabled = true
     @State private var showingSignOutAlert = false
     @Binding var selectedTab: Int
+    
+    init(selectedTab: Binding<Int>) {
+        self._selectedTab = selectedTab
+        // Initialisation temporaire du ProfileViewModel avec un AuthenticationViewModel vide pour le preview
+        // La vraie instance sera injectée dans onAppear
+        self._profileViewModel = StateObject(wrappedValue: ProfileViewModel(authViewModel: AuthenticationViewModel()))
+    }
+    
+    func signOut() {
+        showingSignOutAlert = false
+        authViewModel.signOut() // Utiliser directement authViewModel pour la déconnexion
+        selectedTab = 1
+    }
     
     var body: some View {
         NavigationStack {
@@ -28,7 +42,7 @@ struct ProfileView: View {
                         Spacer()
                         
                         // Avatar circulaire
-                        AsyncImage(url: URL(string: "https://example.com/avatar.jpg")) { phase in
+                        AsyncImage(url: profileViewModel.avatarUrl) { phase in
                             switch phase {
                             case .empty:
                                 Circle()
@@ -63,29 +77,29 @@ struct ProfileView: View {
                     // Champs de profil
                     VStack(spacing: 25) {
                         // Champ Name
-                        Text(Auth.auth().currentUser?.displayName ?? "Hamdi")
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .frame(height: 56)
-                                .background(Color("DarkGry"))
-                                .cornerRadius(12)
+                        Text(profileViewModel.displayName)
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: 56)
+                            .background(Color("DarkGry"))
+                            .cornerRadius(12)
                         
                         .padding(.horizontal, 16)
                         
                         // Champ E-mail
-                            Text(Auth.auth().currentUser?.email ?? "hamdi@yahoo.fr")
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .frame(height: 56)
-                                .background(Color("DarkGry"))
-                                .cornerRadius(10)
-                                .padding(.horizontal, 16)
+                        Text(profileViewModel.email)
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: 56)
+                            .background(Color("DarkGry"))
+                            .cornerRadius(10)
+                            .padding(.horizontal, 16)
                         
                         // Switch Notifications
                         HStack {
@@ -105,9 +119,51 @@ struct ProfileView: View {
                     .padding(.top, 30)
                     
                     Spacer()
+                    
+                    // Bouton de déconnexion
+                    Button(action: {
+                        showingSignOutAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundColor(.red)
+                            Text("Déconnexion")
+                                .foregroundColor(.red)
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color("DarkGry"))
+                        .cornerRadius(10)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 30)
                 }
             }
             .navigationBarHidden(true)
+            .onAppear {
+                // Créer une nouvelle instance avec l'authViewModel injecté
+                let newProfileViewModel = ProfileViewModel(authViewModel: authViewModel)
+                
+                // Forcer le rechargement des données du profil
+                newProfileViewModel.loadUserProfile()
+                
+                // Mettre à jour notre profileViewModel avec les nouvelles données
+                DispatchQueue.main.async {
+                    profileViewModel.displayName = newProfileViewModel.displayName
+                    profileViewModel.email = newProfileViewModel.email
+                    profileViewModel.avatarUrl = newProfileViewModel.avatarUrl
+                    profileViewModel.notificationsEnabled = newProfileViewModel.notificationsEnabled
+                }
+            }
+            .alert("Déconnexion", isPresented: $showingSignOutAlert) {
+                Button("Annuler", role: .cancel) { }
+                Button("Déconnexion", role: .destructive) {
+                    signOut()
+                }
+            } message: {
+                Text("Êtes-vous sûr de vouloir vous déconnecter ?")
+            }
         }
     }
 }

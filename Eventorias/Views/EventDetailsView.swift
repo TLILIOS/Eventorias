@@ -80,7 +80,7 @@ struct EventDetailsView: View {
     
     // MARK: - Sections
     
-    /// Section image de l'événement
+
     private func eventImageSection(_ event: Event) -> some View {
         ZStack(alignment: .bottom) {
             AsyncImage(url: URL(string: event.imageURL ?? "")) { phase in
@@ -237,6 +237,7 @@ struct EventDetailsView: View {
     private func mapView(_ event: Event) -> some View {
         ZStack {
             if viewModel.isLoadingMap {
+                // État de chargement
                 Rectangle()
                     .fill(Color("DarkGry"))
                     .frame(height: 200)
@@ -263,12 +264,39 @@ struct EventDetailsView: View {
                             .fill(Color("DarkGry"))
                             .overlay {
                                 VStack(spacing: 8) {
-                                    Image(systemName: "map")
+                                    Image(systemName: "exclamationmark.triangle")
                                         .font(.system(size: 24))
-                                    Text("Erreur carte")
-                                        .font(.caption)
+                                        .foregroundColor(Color("Red"))
+                                    
+                                    if !viewModel.errorMessage.isEmpty {
+                                        Text(viewModel.errorMessage)
+                                            .font(.caption)
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal, 8)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    } else {
+                                        Text("Erreur de chargement de la carte")
+                                            .font(.caption)
+                                    }
+                                    
+                                    Button(action: {
+                                        Task {
+                                            // Forcer le rechargement de la carte
+                                            await viewModel.geocodeEventLocation()
+                                        }
+                                    }) {
+                                        Label("Réessayer", systemImage: "arrow.counterclockwise")
+                                            .font(.caption2)
+                                            .padding(.vertical, 4)
+                                            .padding(.horizontal, 8)
+                                            .background(Color("Red").opacity(0.8))
+                                            .foregroundColor(.white)
+                                            .cornerRadius(4)
+                                    }
+                                    .padding(.top, 4)
                                 }
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(.white.opacity(0.9))
+                                .padding(12)
                             }
                     @unknown default:
                         EmptyView()
@@ -328,6 +356,5 @@ struct EventDetailsView: View {
 #Preview {
     NavigationStack {
         EventDetailsView(eventID: (Event.sampleEvents.indices.contains(2) ? Event.sampleEvents[2].id : "")!)
-
     }
 }

@@ -67,12 +67,18 @@
 				ViewModels/ProfileViewModel.swift,
 				Views/Components/ErrorView.swift,
 				Views/Components/EventRowView.swift,
+				Views/Components/EventSearchBar.swift,
+				Views/Components/EventSortButton.swift,
+				Views/Components/FloatingActionButton.swift,
 				Views/Components/FormFieldViews.swift,
 				Views/Components/LoadingView.swift,
 				Views/EmailSignInView.swift,
 				Views/EventCreationView.swift,
 				Views/EventDetailsView.swift,
 				Views/EventList.swift,
+				Views/EventScrollList.swift,
+				Views/EventsListContent.swift,
+				Views/EventsTabView.swift,
 				Views/ProfileView.swift,
 				Views/SignInView.swift,
 			);
@@ -84,6 +90,7 @@
 				Assets.xcassets,
 				EventoriasApp.swift,
 				"GoogleService-Info.plist",
+				Info.plist,
 				Models/Event.swift,
 				Services/AuthenticationService.swift,
 				Services/EventService.swift,
@@ -96,12 +103,18 @@
 				ViewModels/ProfileViewModel.swift,
 				Views/Components/ErrorView.swift,
 				Views/Components/EventRowView.swift,
+				Views/Components/EventSearchBar.swift,
+				Views/Components/EventSortButton.swift,
+				Views/Components/FloatingActionButton.swift,
 				Views/Components/FormFieldViews.swift,
 				Views/Components/LoadingView.swift,
 				Views/EmailSignInView.swift,
 				Views/EventCreationView.swift,
 				Views/EventDetailsView.swift,
 				Views/EventList.swift,
+				Views/EventScrollList.swift,
+				Views/EventsListContent.swift,
+				Views/EventsTabView.swift,
 				Views/ProfileView.swift,
 				Views/SignInView.swift,
 			);
@@ -517,6 +530,10 @@
 				DEVELOPMENT_TEAM = 5FZ8ZXZS35;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Eventorias/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Eventorias a besoin d'accéder à votre caméra pour prendre des photos pour vos événements";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Eventorias a besoin d'accéder à votre photothèque pour sélectionner des images pour vos événements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -545,6 +562,10 @@
 				DEVELOPMENT_TEAM = 5FZ8ZXZS35;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Eventorias/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Eventorias a besoin d'accéder à votre caméra pour prendre des photos pour vos événements";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Eventorias a besoin d'accéder à votre photothèque pour sélectionner des images pour vos événements.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

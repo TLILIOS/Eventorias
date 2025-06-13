@@ -71,6 +71,8 @@ struct EventRowView: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
+                        .frame(width: 136, height: 80) // largeur et hauteur fixes
+                        .clipped()
                 case .failure:
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color.gray.opacity(0.3))
@@ -83,8 +85,9 @@ struct EventRowView: View {
                     EmptyView()
                 }
             }
-            .frame(height: 80)
+            .frame(width: 136, height: 80)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+
         }
         .background(Color("DarkGry"))
         .cornerRadius(12)

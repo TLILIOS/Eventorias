@@ -64,3 +64,45 @@ struct StyledDatePicker: View {
             .cornerRadius(cornerRadius)
     }
 }
+
+// MARK: - Preview Container
+struct FormComponentsPreviewContainer: View {
+    @State private var textFieldValue = "Texte d'exemple"
+    @State private var textEditorValue = "Description plus longue sur plusieurs lignes pour montrer comment le TextEditor gère le texte dans l'interface utilisateur."
+    @State private var dateValue = Date()
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("StyledTextField")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                StyledTextField(placeholder: "Entrez un titre", text: $textFieldValue)
+            }
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text("StyledTextEditor")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                StyledTextEditor(text: $textEditorValue, height: 150)
+            }
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text("StyledDatePicker")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                StyledDatePicker(date: $dateValue, components: [.date, .hourAndMinute])
+            }
+        }
+        .padding()
+        .background(Color.black)
+    }
+}
+
+// MARK: - Preview
+#Preview {
+    FormComponentsPreviewContainer()
+}
