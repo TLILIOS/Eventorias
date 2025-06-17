@@ -8,6 +8,7 @@
 import SwiftUI
 import FirebaseAuth
 import Combine
+import FirebaseStorage
 
 /// ViewModel responsable de la gestion des données et actions du profil utilisateur
 @MainActor
@@ -23,11 +24,11 @@ final class ProfileViewModel: ObservableObject {
     
     // MARK: - Dependencies
     
-    private let authViewModel: AuthenticationViewModel
+    private let authViewModel: any AuthenticationViewModelProtocol
     
     // MARK: - Initialization
     
-    init(authViewModel: AuthenticationViewModel) {
+    init(authViewModel: any AuthenticationViewModelProtocol) {
         self.authViewModel = authViewModel
         loadUserProfile()
     }
@@ -39,11 +40,27 @@ final class ProfileViewModel: ObservableObject {
         isLoading = true
         
         if let user = Auth.auth().currentUser {
-            displayName = user.displayName ?? "User"
-            email = user.email ?? "No email"
+            displayName = user.displayName ?? "Non défini"
+            email = user.email ?? ""
             
             if let photoURL = user.photoURL {
                 avatarUrl = photoURL
+                print("📷 DEBUG: Photo URL trouvée: \(photoURL)")
+            } else {
+                print("⚠️ DEBUG: Aucune photo URL trouvée pour l'utilisateur")
+                // Tenter de récupérer l'image depuis Storage en utilisant l'UID
+                let storageRef = FirebaseStorage.Storage.storage().reference().child("profile_images/\(user.uid).jpg")
+                Task {
+                    do {
+                        let downloadURL = try await storageRef.downloadURL()
+                        DispatchQueue.main.async {
+                            self.avatarUrl = downloadURL
+                            print("📷 DEBUG: Photo URL récupérée depuis Storage: \(downloadURL)")
+                        }
+                    } catch {
+                        print("⚠️ DEBUG: Impossible de récupérer l'URL de la photo depuis Storage: \(error.localizedDescription)")
+                    }
+                }
             }
         } else {
             errorMessage = "No user is currently logged in"

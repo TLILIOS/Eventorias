@@ -42,34 +42,45 @@ struct ProfileView: View {
                         Spacer()
                         
                         // Avatar circulaire
-                        AsyncImage(url: profileViewModel.avatarUrl) { phase in
-                            switch phase {
-                            case .empty:
-                                Circle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 20))
-                                    )
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            case .failure:
-                                Circle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 20))
-                                    )
-                            @unknown default:
-                                EmptyView()
+                        if let avatarUrl = profileViewModel.avatarUrl {
+                            AsyncImage(url: avatarUrl) { phase in
+                                switch phase {
+                                case .empty:
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 20))
+                                        )
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                case .failure:
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .foregroundColor(.white)
+                                                .font(.system(size: 20))
+                                        )
+                                @unknown default:
+                                    EmptyView()
+                                }
                             }
+                            .frame(width: 50, height: 50)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 20))
+                                )
+                                .frame(width: 50, height: 50)
                         }
-                        .frame(width: 50, height: 50)
-                        .clipShape(Circle())
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 20)

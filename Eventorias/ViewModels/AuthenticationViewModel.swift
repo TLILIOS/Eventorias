@@ -96,9 +96,9 @@ final class AuthenticationViewModel: ObservableObject {
     // MARK: - Private Methods
     
     /// Vérifie le statut d'authentification au démarrage
-    private func checkAuthenticationStatus() {
-        // Par défaut, on affiche l'écran de connexion même si l'utilisateur est authentifié
-        isAuthenticated = UserDefaults.standard.bool(forKey: showLoginScreenKey)
+    func checkAuthenticationStatus() {
+        // Vérifier si l'utilisateur est authentifié via le service d'authentification
+        isAuthenticated = authService.isUserAuthenticated()
     }
     
     /// Exécute une action d'authentification avec gestion d'erreur
@@ -121,11 +121,42 @@ final class AuthenticationViewModel: ObservableObject {
         isLoading = false
     }
     
-    /// Gère les erreurs d'authentification
-    /// - Parameter error: L'erreur à traiter
+  
     private func handleAuthError(_ error: Error) {
-        if let authError = error as? AuthErrorCode {
-            switch authError.code {
+        // Gestion spécifique des erreurs Firebase
+        if let nsError = error as NSError?, nsError.domain == "FIRAuthErrorDomain" {
+            // Créer un AuthErrorCode à partir du code d'erreur NSError
+            if let authErrorCode = AuthErrorCode(rawValue: nsError.code) {
+                switch authErrorCode {
+                case .userNotFound:
+                    errorMessage = "Aucun compte trouvé avec cet email."
+                case .wrongPassword:
+                    errorMessage = "Mot de passe incorrect."
+                case .emailAlreadyInUse:
+                    errorMessage = "Un compte existe déjà avec cet email."
+                case .weakPassword:
+                    errorMessage = "Le mot de passe est trop faible."
+                case .invalidEmail:
+                    errorMessage = "Format d'email invalide."
+                case .tooManyRequests:
+                    errorMessage = "Trop de tentatives. Veuillez réessayer plus tard."
+                case .userDisabled:
+                    errorMessage = "Ce compte a été désactivé."
+                case .operationNotAllowed:
+                    errorMessage = "Cette méthode d'authentification n'est pas autorisée."
+                case .invalidCredential:
+                    errorMessage = "Identifiants invalides."
+                case .networkError:
+                    errorMessage = "Erreur de connexion réseau."
+                default:
+                    errorMessage = error.localizedDescription
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        } else if let authError = error as? AuthErrorCode {
+            // Gestion des erreurs AuthErrorCode directes (si utilisées ailleurs)
+            switch authError {
             case .userNotFound:
                 errorMessage = "Aucun compte trouvé avec cet email."
             case .wrongPassword:
@@ -144,6 +175,7 @@ final class AuthenticationViewModel: ObservableObject {
         }
         showingError = true
     }
+
     
     /// Vide le formulaire
     private func clearForm() {

@@ -13,7 +13,13 @@ import FirebaseAuth
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        FirebaseApp.configure()
+        // Ne pas initialiser Firebase pendant les tests UI
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("UI_TESTING")
+        if !isUITesting {
+            FirebaseApp.configure()
+        } else {
+            print("Firebase non initialisé car en mode test UI")
+        }
         return true
     }
 }
@@ -33,13 +39,6 @@ struct EventoriasApp: App {
                 } else {
                     SignInView()
                         .environmentObject(authViewModel)
-                }
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .background {
-                    // Déconnexion automatique quand l'application passe en arrière-plan
-                    // Utilise la méthode qui conserve les identifiants pour les pré-remplir
-                    authViewModel.signOutWithoutClearingForm()
                 }
             }
         }

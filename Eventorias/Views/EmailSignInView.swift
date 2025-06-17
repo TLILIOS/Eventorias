@@ -164,7 +164,7 @@ struct EmailSignInView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.gray)
                     
-                    StyledTextField(placeholder: "Entrez votre nom d'utilisateur", text: $viewModel.username)
+                    StyledTextField(placeholder: "Entrez votre nom d'utilisateur", text: $viewModel.username, accessibilityId: "Champ nom d'utilisateur")
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                         .textContentType(.username)
@@ -178,7 +178,7 @@ struct EmailSignInView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.gray)
                 
-                StyledTextField(placeholder: "Entrez votre email", text: $viewModel.email)
+                StyledTextField(placeholder: "Entrez votre email", text: $viewModel.email, accessibilityId: "Champ email")
                     .keyboardType(.emailAddress)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
@@ -274,6 +274,7 @@ struct StyledPasswordField: View {
                     .cornerRadius(5)
                     .foregroundColor(.white)
                     .textContentType(.password)
+                    .accessibilityIdentifier("Champ mot de passe")
             } else {
                 SecureField("Entrez votre mot de passe", text: $password)
                     .padding(.horizontal, 16)
@@ -283,6 +284,7 @@ struct StyledPasswordField: View {
                     .cornerRadius(5)
                     .foregroundColor(.white)
                     .textContentType(.password)
+                    .accessibilityIdentifier("Champ mot de passe")
             }
             
             Button(action: {
@@ -292,6 +294,7 @@ struct StyledPasswordField: View {
                     .foregroundColor(.white)
                     .padding(.trailing, 16)
             }
+            .accessibilityIdentifier(isPasswordVisible ? "Masquer le mot de passe" : "Afficher le mot de passe")
         }
         .accessibilityLabel("Champ mot de passe")
         .accessibilityHint("Saisissez votre mot de passe")

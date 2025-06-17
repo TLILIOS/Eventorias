@@ -16,6 +16,7 @@ struct StyledTextField: View {
     var backgroundColor: String = "DarkGry"
     var textColor: Color = .white
     var horizontalPadding: CGFloat = 16
+    var accessibilityId: String? = nil
     
     var body: some View {
         TextField(placeholder, text: $text)
@@ -24,6 +25,7 @@ struct StyledTextField: View {
             .background(Color(backgroundColor))
             .cornerRadius(cornerRadius)
             .foregroundColor(textColor)
+            .accessibilityIdentifier(accessibilityId ?? placeholder)
     }
 }
 

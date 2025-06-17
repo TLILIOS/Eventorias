@@ -39,7 +39,7 @@ final class EventCreationViewModel: ObservableObject {
     
     // MARK: - Dependencies
     
-    private let eventViewModel: EventViewModel
+    private let eventViewModel: EventViewModelProtocol
     
     // Firebase Storage
     private let storage = Storage.storage()
@@ -47,7 +47,7 @@ final class EventCreationViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(eventViewModel: EventViewModel) {
+    init(eventViewModel: EventViewModelProtocol) {
         self.eventViewModel = eventViewModel
         
         // Les vérifications d'autorisations seront effectuées à la demande

@@ -45,7 +45,7 @@ struct Event: Identifiable, Codable {
     }
 }
 
-// Extension pour faciliter la création de données de test
+
 // Extension pour faciliter la création de données de test
 extension Event {
     static var sampleEvents: [Event] {

@@ -10,7 +10,7 @@ import Firebase
 import FirebaseAuth
 
 /// Service de gestion de l'authentification Firebase
-final class AuthenticationService {
+ class AuthenticationService {
     
     // MARK: - Authentication Methods
     
@@ -56,7 +56,7 @@ final class AuthenticationService {
     /// - Parameter email: L'email à valider
     /// - Returns: true si l'email est valide, false sinon
     func isValidEmail(_ email: String) -> Bool {
-        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{1,64}"
         let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
         return emailPredicate.evaluate(with: email)
     }

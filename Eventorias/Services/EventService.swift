@@ -95,7 +95,7 @@ class EventService {
     }
     
     // Créer un nouvel événement
-    func createEvent(title: String, description: String, date: Date, location: String, image: UIImage?) async throws -> String {
+    func createEvent(title: String, description: String, date: Date, location: String, imageURL: String?) async throws -> String {
         var eventData: [String: Any] = [
             "title": title,
             "description": description,
@@ -112,9 +112,8 @@ class EventService {
             eventData["longitude"] = coordinates.longitude
         }
         
-        // Si une image est fournie, l'uploader et ajouter l'URL
-        if let image = image, let imageData = image.jpegData(compressionQuality: 0.7) {
-            let imageURL = try await uploadImage(imageData: imageData)
+        // Si une URL d'image est fournie, l'ajouter aux données
+        if let imageURL = imageURL {
             eventData["image_url"] = imageURL
         }
         
