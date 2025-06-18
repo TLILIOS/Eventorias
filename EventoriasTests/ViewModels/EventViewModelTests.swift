@@ -338,4 +338,200 @@ final class EventViewModelTests: XCTestCase {
         XCTAssertEqual(sut.errorMessage, "")
         XCTAssertFalse(sut.showingError)
     }
+    
+    // MARK: - Test Image Upload States
+    func testImageUploadState_UploadOnly() async {
+        // Arrange
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 100))
+        let testImage = renderer.image { ctx in
+            UIColor.blue.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+        }
+        
+        sut.eventImage = testImage
+        mockEventService.mockImageURL = "https://test-image-url.com/image.jpg"
+        
+        // Act - Test uniquement l'upload
+        do {
+            let imageURL = try await sut.uploadEventImage()
+            
+            // Assert
+            XCTAssertEqual(imageURL, "https://test-image-url.com/image.jpg")
+            XCTAssertEqual(sut.imageUploadState, .success(url: "https://test-image-url.com/image.jpg"))
+        } catch {
+            XCTFail("Upload should succeed: \(error)")
+        }
+    }
+
+    
+    func testImageUploadState_FailureState() async {
+        // Arrange
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 100, height: 100))
+        let testImage = renderer.image { ctx in
+            UIColor.red.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+        }
+        
+        sut.eventTitle = "Event With Image"
+        sut.eventAddress = "Some Location"
+        sut.eventImage = testImage
+        
+        let errorMessage = "Upload failed due to network error"
+        mockEventService.mockError = NSError(domain: "test", code: 500, 
+                                         userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        
+        let expectation = XCTestExpectation(description: "Image upload failure state")
+        
+        // Act
+        Task {
+            let success = await sut.createEvent()
+            
+            // Assert
+            XCTAssertFalse(success)
+            
+            // Check if imageUploadState is failure with the correct error message
+            switch sut.imageUploadState {
+            case .failure(let error):
+                XCTAssertEqual(error, errorMessage)
+            default:
+                XCTFail("Expected failure state but got \(sut.imageUploadState)")
+            }
+            
+            expectation.fulfill()
+        }
+        
+        await fulfillment(of: [expectation], timeout: 2.0)
+    }
+    
+    // MARK: - Test Computed Properties
+    func testIsFormValid() {
+        // Given - Invalid form (empty title)
+        sut.eventTitle = ""
+        sut.eventAddress = "Location"
+        
+        // Then
+        XCTAssertFalse(sut.isFormValid)
+        
+        // Given - Invalid form (empty address)
+        sut.eventTitle = "Title"
+        sut.eventAddress = ""
+        
+        // Then
+        XCTAssertFalse(sut.isFormValid)
+        
+        // Given - Valid form
+        sut.eventTitle = "Title"
+        sut.eventAddress = "Location"
+        
+        // Then
+        XCTAssertTrue(sut.isFormValid)
+        
+        // Given - Whitespace-only values
+        sut.eventTitle = "   "
+        sut.eventAddress = "Location"
+        
+        // Then
+        XCTAssertFalse(sut.isFormValid)
+    }
+    
+    func testHasEvents_AndEmptyStateMessage() {
+        // Given - No events
+        sut.events = []
+        
+        // Then
+        XCTAssertFalse(sut.hasEvents)
+        XCTAssertEqual(sut.emptyStateMessage, "Aucun événement disponible")
+        
+        // Given - With events
+        sut.events = createSampleEvents()
+        
+        // Then
+        XCTAssertTrue(sut.hasEvents)
+        
+        // Given - With search but no results
+        sut.searchText = "something nonexistent"
+        
+        // Then
+        XCTAssertEqual(sut.emptyStateMessage, "Aucun résultat pour \"something nonexistent\"")
+    }
+    
+    func testIsSearchActive() {
+        // Given - No search
+        sut.searchText = ""
+        
+        // Then
+        XCTAssertFalse(sut.isSearchActive)
+        
+        // Given - With search
+        sut.searchText = "test"
+        
+        // Then
+        XCTAssertTrue(sut.isSearchActive)
+        
+        // Given - Whitespace-only search
+        sut.searchText = "   "
+        
+        // Then
+        XCTAssertFalse(sut.isSearchActive)
+    }
+    
+    // MARK: - Complex Filter/Sort Combinations
+    func testFilterAndSortCombination() async {
+        // Arrange - Events with different dates and locations
+        let calendar = Calendar.current
+        let today = Date()
+        
+        let event1 = EventTestFactory.createEvent(
+            id: "event1",
+            title: "Paris Event",
+            date: calendar.date(byAdding: .day, value: 3, to: today)!,
+            location: "Paris"
+        )
+        
+        let event2 = EventTestFactory.createEvent(
+            id: "event2",
+            title: "Lyon Event",
+            date: calendar.date(byAdding: .day, value: 1, to: today)!,
+            location: "Lyon"
+        )
+        
+        let event3 = EventTestFactory.createEvent(
+            id: "event3",
+            title: "Another Paris Event",
+            date: calendar.date(byAdding: .day, value: 2, to: today)!,
+            location: "Paris"
+        )
+        
+        // Set up service
+        mockEventService.mockEvents = [event1, event2, event3]
+        
+        let expectation = XCTestExpectation(description: "Filter and sort combined")
+        
+        // Act - Load events, filter by location and sort
+        Task {
+            await sut.fetchEvents()
+            
+            // Filter by location
+            sut.searchText = "Paris"
+            
+            // Should have only Paris events, sorted by date ascending
+            let filteredAscending = sut.filteredEvents
+            XCTAssertEqual(filteredAscending.count, 2, "Should have 2 Paris events")
+            XCTAssertEqual(filteredAscending[0].id, "event3", "First should be the earlier Paris event")
+            XCTAssertEqual(filteredAscending[1].id, "event1", "Second should be the later Paris event")
+            
+            // Change sort to descending
+            sut.sortOption = .dateDescending
+            await sut.updateSortOption(.dateDescending)
+            
+            // Should still have Paris events, but now sorted by date descending
+            XCTAssertEqual(sut.filteredEvents.count, 2, "Still should have 2 Paris events")
+            XCTAssertEqual(sut.filteredEvents[0].id, "event1", "First should be the later Paris event")
+            XCTAssertEqual(sut.filteredEvents[1].id, "event3", "Second should be the earlier Paris event")
+            
+            expectation.fulfill()
+        }
+        
+        await fulfillment(of: [expectation], timeout: 2.0)
+    }
 }

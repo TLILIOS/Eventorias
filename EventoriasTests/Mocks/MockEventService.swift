@@ -3,7 +3,7 @@ import UIKit
 import CoreLocation
 @testable import Eventorias
 
-class MockEventService: EventService {
+class MockEventService: EventServiceProtocol {
     // Tracking properties
     var fetchEventsCalled = false
     var searchEventsCalled = false
@@ -36,8 +36,8 @@ class MockEventService: EventService {
     var lastEventLocation: String?
     var lastImageURL: String?
     
-    // Override methods
-    override func fetchEvents() async throws -> [Event] {
+    // Implement EventServiceProtocol methods
+    func fetchEvents() async throws -> [Event] {
         fetchEventsCalled = true
         
         // Use fetchEventsResult if available, otherwise fall back to the original implementation
@@ -58,7 +58,7 @@ class MockEventService: EventService {
         return mockEvents
     }
     
-    override func searchEvents(query: String) async throws -> [Event] {
+    func searchEvents(query: String) async throws -> [Event] {
         searchEventsCalled = true
         lastSearchQuery = query
         
@@ -69,7 +69,7 @@ class MockEventService: EventService {
         return mockEvents.filter { $0.title.lowercased().contains(query.lowercased()) }
     }
     
-    override func filterEventsByCategory(category: String) async throws -> [Event] {
+    func filterEventsByCategory(category: String) async throws -> [Event] {
         filterEventsByCategoryCalled = true
         lastCategory = category
         
@@ -80,7 +80,7 @@ class MockEventService: EventService {
         return mockEvents.filter { $0.category == category }
     }
     
-    override func getEventsSortedByDate(ascending: Bool) async throws -> [Event] {
+    func getEventsSortedByDate(ascending: Bool) async throws -> [Event] {
         getEventsSortedByDateCalled = true
         lastSortAscending = ascending
         
@@ -93,7 +93,7 @@ class MockEventService: EventService {
         }
     }
     
-    override func addSampleEvents() async throws {
+    func addSampleEvents() async throws {
         addSampleEventsCalled = true
         
         if let error = mockError {
@@ -101,7 +101,7 @@ class MockEventService: EventService {
         }
     }
     
-    override func isEventsCollectionEmpty() async throws -> Bool {
+    func isEventsCollectionEmpty() async throws -> Bool {
         isEventsCollectionEmptyCalled = true
         
         if let error = mockError {
@@ -111,7 +111,7 @@ class MockEventService: EventService {
         return mockIsEmpty
     }
     
-    override func createEvent(title: String, description: String, date: Date, location: String, imageURL: String?) async throws -> String {
+    func createEvent(title: String, description: String, date: Date, location: String, imageURL: String?) async throws -> String {
         createEventCalled = true
         lastEventTitle = title
         lastEventDescription = description
@@ -126,8 +126,8 @@ class MockEventService: EventService {
         return mockEventId
     }
     
-    // CORRECTION: Assurer que mockImageURL est retourné correctement
-    override func uploadImage(imageData: Data) async throws -> String {
+    // Upload image implementation
+    func uploadImage(imageData: Data) async throws -> String {
         uploadImageCalled = true
         print("🔍 MockEventService.uploadImage called")
         print("  - imageData size: \(imageData.count)")
@@ -149,7 +149,7 @@ class MockEventService: EventService {
     }
 
     
-    override func getCoordinatesForAddress(_ address: String) async throws -> CLLocationCoordinate2D {
+    func getCoordinatesForAddress(_ address: String) async throws -> CLLocationCoordinate2D {
         getCoordinatesForAddressCalled = true
         lastEventLocation = address
         

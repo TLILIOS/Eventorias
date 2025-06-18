@@ -73,7 +73,7 @@ extension View {
 // MARK: - Preview
 #Preview {
     // Créer un EventViewModel factice pour l'aperçu
-    let previewViewModel = EventViewModel()
+    let previewViewModel = AppDependencyContainer.shared.makeEventViewModel()
     previewViewModel.searchText = "" // Texte vide pour montrer le placeholder
     
     return ZStack {

@@ -8,7 +8,7 @@ import SwiftUI
 
 struct EventList: View {
     @EnvironmentObject private var authViewModel: AuthenticationViewModel
-    @State private var eventViewModel = EventViewModel()
+    @State private var eventViewModel = AppDependencyContainer.shared.makeEventViewModel()
     
     var body: some View {
         TabView {

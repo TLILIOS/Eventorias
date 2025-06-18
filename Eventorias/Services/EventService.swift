@@ -12,7 +12,7 @@ import Combine
 import UIKit
 import CoreLocation
 
-class EventService {
+class EventService: EventServiceProtocol {
     private let db = Firestore.firestore()
     private let storage = Storage.storage().reference()
     private let collectionPath = "events"

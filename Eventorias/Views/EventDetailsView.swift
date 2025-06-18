@@ -10,7 +10,7 @@ import SwiftUI
 struct EventDetailsView: View {
     // MARK: - Properties
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var viewModel = EventDetailsViewModel()
+    @StateObject private var viewModel = AppDependencyContainer.shared.makeEventDetailsViewModel()
     let eventID: String
     
     // MARK: - Body
@@ -356,5 +356,6 @@ struct EventDetailsView: View {
 #Preview {
     NavigationStack {
         EventDetailsView(eventID: (Event.sampleEvents.indices.contains(2) ? Event.sampleEvents[2].id : "")!)
+            .preferredColorScheme(.dark)
     }
 }

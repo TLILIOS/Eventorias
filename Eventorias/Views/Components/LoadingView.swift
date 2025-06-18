@@ -38,8 +38,8 @@ struct LoadingView: View {
 // Preview mis à jour pour passer un viewModel factice
 #Preview {
     // Création d'un EventViewModel factice pour l'aperçu
-    let previewViewModel = EventViewModel()
+    let previewViewModel = AppDependencyContainer.shared.makeEventViewModel()
     
-    return LoadingView(eventViewModel: previewViewModel)
+    LoadingView(eventViewModel: previewViewModel)
         .preferredColorScheme(.dark)
 }

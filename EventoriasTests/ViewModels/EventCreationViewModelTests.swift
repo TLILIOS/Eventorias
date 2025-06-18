@@ -1,4 +1,4 @@
-// 
+
 // EventCreationViewModelTests.swift
 // EventoriasTests
 //
@@ -7,195 +7,180 @@
 
 import XCTest
 import SwiftUI
+import Combine
 @testable import Eventorias
+
 @MainActor
 final class EventCreationViewModelTests: XCTestCase {
+    
     var mockEventViewModel: MockEventViewModel!
+    var mockAuthService: MockAuthenticationService!
+    var mockStorageService: MockStorageService!
+    var mockFirestoreService: MockFirestoreService!
     var sut: EventCreationViewModel!
+    var cancellables: Set<AnyCancellable>!
     
     override func setUp() {
         super.setUp()
         mockEventViewModel = MockEventViewModel()
-        sut = EventCreationViewModel(eventViewModel: mockEventViewModel)
+        mockAuthService = MockAuthenticationService()
+        mockStorageService = MockStorageService()
+        mockFirestoreService = MockFirestoreService()
+        
+        sut = EventCreationViewModel(
+            eventViewModel: mockEventViewModel,
+            authService: mockAuthService,
+            storageService: mockStorageService,
+            firestoreService: mockFirestoreService
+        )
+        
+        cancellables = Set<AnyCancellable>()
     }
     
     override func tearDown() {
+        cancellables = nil
+        mockFirestoreService = nil
+        mockStorageService = nil
+        mockAuthService = nil
         mockEventViewModel = nil
         sut = nil
         super.tearDown()
     }
     
-    // MARK: - Tests
+    // MARK: - Tests d'authentification mockée
     
-    func testInitialization() {
-        // Test que les propriétés sont correctement initialisées avec les valeurs par défaut
-        XCTAssertEqual(sut.eventTitle, "New event")
-        XCTAssertEqual(sut.eventDescription, "Tap here to enter your description")
-        XCTAssertEqual(sut.eventAddress, "")
-        XCTAssertNil(sut.eventImage)
-        XCTAssertEqual(sut.errorMessage, "")
-        XCTAssertFalse(sut.eventCreationSuccess)
-        XCTAssertFalse(sut.showingAlert)
-        
-        // Vérification de l'état initial d'imageUploadState
-        if case .idle = sut.imageUploadState {
-            XCTAssertTrue(true) // ImageUploadState est bien .idle
-        } else {
-            XCTFail("ImageUploadState devrait être .idle")
-        }
-    }
-    
-    func testCreateEvent_TitleValidation() async {
-        // Arrange
-        sut.eventTitle = "" // Titre vide
-        sut.eventAddress = "123 Test Street" // Adresse valide
-        
-        // Act
-        let result = await sut.createEvent()
-        
-        // Assert
-        XCTAssertFalse(result)
-        XCTAssertEqual(sut.errorMessage, "Veuillez saisir un titre pour l'événement")
-    }
-    
-    func testCreateEvent_LocationValidation() async {
-        // Arrange
-        sut.eventTitle = "Test Event" // Titre valide
-        sut.eventAddress = "" // Adresse vide
-        
-        // Act
-        let result = await sut.createEvent()
-        
-        // Assert
-        XCTAssertFalse(result)
-        XCTAssertEqual(sut.errorMessage, "Veuillez saisir une adresse pour l'événement")
-    }
-    
-    func testCreateEvent_Success() async {
+    func testCreateEvent_WithMockedAuth() async {
         // Arrange
         sut.eventTitle = "Test Event"
-        sut.eventAddress = "123 Test Street"
-        sut.eventDate = Date().addingTimeInterval(86400) // Demain
+        sut.eventAddress = "Test Address"
+        mockAuthService.currentUserDisplayName = "Mock User"
+        mockFirestoreService.shouldSucceed = true
         
         // Act
         let result = await sut.createEvent()
         
         // Assert
-        // Note: la validation de la date n'est pas actuellement implémentée dans createEvent()
-        // Donc si les autres champs sont valides, le résultat devrait être true
         XCTAssertTrue(result)
+        XCTAssertTrue(sut.eventCreationSuccess)
+        XCTAssertEqual(mockFirestoreService.createdEvents.count, 1)
+        XCTAssertEqual(mockFirestoreService.createdEvents.first?.organizer, "Mock User")
     }
     
-    func testImageUploadState() {
-        // Vérifie que les différents états d'ImageUploadState sont comparables correctement
-        
-        // Test des états simples
-        XCTAssertEqual(EventCreationViewModel.ImageUploadState.idle, EventCreationViewModel.ImageUploadState.idle)
-        XCTAssertEqual(EventCreationViewModel.ImageUploadState.success, EventCreationViewModel.ImageUploadState.success)
-        XCTAssertEqual(EventCreationViewModel.ImageUploadState.failure, EventCreationViewModel.ImageUploadState.failure)
-        XCTAssertNotEqual(EventCreationViewModel.ImageUploadState.idle, EventCreationViewModel.ImageUploadState.success)
-        
-        // Test des états avec progression
-        XCTAssertEqual(EventCreationViewModel.ImageUploadState.uploading(0.5), EventCreationViewModel.ImageUploadState.uploading(0.5))
-        XCTAssertNotEqual(EventCreationViewModel.ImageUploadState.uploading(0.5), EventCreationViewModel.ImageUploadState.uploading(0.6))
-        XCTAssertNotEqual(EventCreationViewModel.ImageUploadState.uploading(0.5), EventCreationViewModel.ImageUploadState.success)
-    }
+    // MARK: - Tests d'upload d'image mockés
     
-    // Note: La validation de date n'est pas actuellement implémentée dans EventCreationViewModel,
-    // mais nous testons le comportement attendu pour la validation de base qui est présente
-    
-    func testEventImageNull() {
-        // Vérifie le comportement quand l'image est null
-        XCTAssertNil(sut.eventImage)
-    }
-    
-    func testShowAlertFunctionality() {
+    func testUploadImage_Success() async {
         // Arrange
-        let testTitle = "Test Alert"
-        let testMessage = "Test Message"
-        
-        // Valeurs initiales
-        XCTAssertFalse(sut.showingAlert)
-        XCTAssertEqual(sut.alertTitle, "")
-        XCTAssertEqual(sut.alertMessage, "")
-        
-        // Simulation de l'affichage d'une alerte
-        sut.alertTitle = testTitle
-        sut.alertMessage = testMessage
-        sut.showingAlert = true
-        
-        // Vérification
-        XCTAssertTrue(sut.showingAlert)
-        XCTAssertEqual(sut.alertTitle, testTitle)
-        XCTAssertEqual(sut.alertMessage, testMessage)
-    }
-    
-    func testResetEventCreationSuccess() {
-        // Arrange
-        sut.eventCreationSuccess = true
+        let testImage = createTestImage()
+        mockStorageService.shouldSucceed = true
+        mockStorageService.mockDownloadURL = "https://test.com/image.jpg"
         
         // Act
-        sut.eventCreationSuccess = false
-        
-        // Assert
-        XCTAssertFalse(sut.eventCreationSuccess)
+        do {
+            try await sut.uploadImage(testImage)
+            
+            // Assert
+            XCTAssertEqual(sut.imageUploadState, .success)
+            XCTAssertEqual(sut.imageURL, "https://test.com/image.jpg")
+        } catch {
+            XCTFail("Upload should succeed: \(error)")
+        }
     }
     
-    // Méthode supprimée pour éviter une duplication avec testCreateEvent_SuccessfulCreation
+    func testUploadImage_Failure() async {
+        // Arrange
+        let testImage = createTestImage()
+        mockStorageService.shouldSucceed = false
+        mockStorageService.mockError = NSError(domain: "TestError", code: 500, userInfo: [NSLocalizedDescriptionKey: "Upload failed"])
+        
+        // Act & Assert
+        do {
+            try await sut.uploadImage(testImage)
+            XCTFail("Upload should fail")
+        } catch {
+            XCTAssertEqual(sut.imageUploadState, .failure)
+            XCTAssertTrue(error.localizedDescription.contains("Upload failed"))
+        }
+    }
     
-    func testCreateEvent_ErrorHandling() async {
+    // MARK: - Tests d'erreur Firestore
+    
+    func testCreateEvent_FirestoreError() async {
         // Arrange
         sut.eventTitle = "Test Event"
-        sut.eventDescription = "Test Description"
-        sut.eventAddress = "Paris, France"
-        
-        // Simuler un scénario d'erreur en préparant l'état
-        mockEventViewModel.shouldSucceed = false
-        mockEventViewModel.mockError = NSError(domain: "test", code: 0, userInfo: [NSLocalizedDescriptionKey: "Service error"])
+        sut.eventAddress = "Test Address"
+        mockFirestoreService.shouldSucceed = false
+        mockFirestoreService.mockError = NSError(domain: "FirestoreError", code: 500, userInfo: [NSLocalizedDescriptionKey: "Permission denied"])
         
         // Act
         let result = await sut.createEvent()
         
         // Assert
-        // Nous vérifions que le résultat est false car une erreur a été simulée
-        // mais notons que l'implémentation actuelle ne fait que valider les champs,
-        // donc la simulation d'erreur n'est pas activement testée ici
-        XCTAssertTrue(result) // La validation passe, même si l'événement pourrait échouer ensuite
-        XCTAssertEqual(sut.errorMessage, "") // Pas d'erreur de validation
+        XCTAssertFalse(result)
+        XCTAssertTrue(sut.errorMessage.contains("Permission denied"))
+        XCTAssertFalse(sut.eventCreationSuccess)
+        XCTAssertEqual(mockFirestoreService.createdEvents.count, 0)
     }
     
-    func testResetFormBehavior() {
-        // Arrange - Remplir le formulaire avec des données
-        let initialTitle = sut.eventTitle
-        let initialDescription = sut.eventDescription
-        sut.eventTitle = "Test Event"
-        sut.eventDescription = "Test Description"
-        sut.eventAddress = "Paris, France"
-        sut.eventImage = UIImage()
-        sut.eventCreationSuccess = true
-        sut.errorMessage = "Test Error"
+    // MARK: - Tests d'intégration complète
+    
+    func testCreateEvent_WithImageUpload_Success() async {
+        // Arrange
+        sut.eventTitle = "Event with Image"
+        sut.eventAddress = "Test Location"
+        sut.eventImage = createTestImage()
         
-        // Act - Simulation d'une réinitialisation
-        sut.eventTitle = initialTitle
-        sut.eventDescription = initialDescription
-        sut.eventAddress = ""
-        sut.eventImage = nil
-        sut.eventCreationSuccess = false
-        sut.errorMessage = ""
-        sut.imageUploadState = .idle
+        mockAuthService.currentUserDisplayName = "Test Organizer"
+        mockStorageService.shouldSucceed = true
+        mockStorageService.mockDownloadURL = "https://test.com/uploaded-image.jpg"
+        mockFirestoreService.shouldSucceed = true
+        
+        // Act
+        let result = await sut.createEvent()
         
         // Assert
-        XCTAssertEqual(sut.eventTitle, "New event")
-        XCTAssertEqual(sut.eventDescription, "Tap here to enter your description")
-        XCTAssertEqual(sut.eventAddress, "")
-        XCTAssertNil(sut.eventImage)
-        XCTAssertFalse(sut.eventCreationSuccess)
-        XCTAssertEqual(sut.errorMessage, "")
+        XCTAssertTrue(result)
+        XCTAssertTrue(sut.eventCreationSuccess)
+        XCTAssertEqual(sut.imageUploadState, .success)
+        XCTAssertEqual(sut.imageURL, "https://test.com/uploaded-image.jpg")
+        XCTAssertEqual(mockFirestoreService.createdEvents.count, 1)
         
-        if case .idle = sut.imageUploadState {
-            XCTAssertTrue(true) // ImageUploadState est bien .idle
-        } else {
-            XCTFail("ImageUploadState devrait être .idle")
-        }
+        let createdEvent = mockFirestoreService.createdEvents.first!
+        XCTAssertEqual(createdEvent.title, "Event with Image")
+        XCTAssertEqual(createdEvent.organizer, "Test Organizer")
+        XCTAssertEqual(createdEvent.imageURL, "https://test.com/uploaded-image.jpg")
+    }
+    
+    func testCreateEvent_ImageUploadFailure() async {
+        // Arrange
+        sut.eventTitle = "Event with Failed Image"
+        sut.eventAddress = "Test Location"
+        sut.eventImage = createTestImage()
+        
+        mockStorageService.shouldSucceed = false
+        mockStorageService.mockError = NSError(domain: "StorageError", code: 500, userInfo: [NSLocalizedDescriptionKey: "Storage upload failed"])
+        
+        // Act
+        let result = await sut.createEvent()
+        
+        // Assert
+        XCTAssertFalse(result)
+        XCTAssertFalse(sut.eventCreationSuccess)
+        XCTAssertEqual(sut.imageUploadState, .failure)
+        XCTAssertTrue(sut.errorMessage.contains("Storage upload failed"))
+        XCTAssertEqual(mockFirestoreService.createdEvents.count, 0) // Aucun événement créé
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func createTestImage() -> UIImage {
+        let size = CGSize(width: 100, height: 100)
+        UIGraphicsBeginImageContext(size)
+        defer { UIGraphicsEndImageContext() }
+        
+        let context = UIGraphicsGetCurrentContext()
+        context?.setFillColor(UIColor.red.cgColor)
+        context?.fill(CGRect(origin: .zero, size: size))
+        
+        return UIGraphicsGetImageFromCurrentImageContext() ?? UIImage()
     }
 }

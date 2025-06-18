@@ -32,10 +32,10 @@ class EventViewModel: EventViewModelProtocol {
     var imageUploadState: ImageUploadState = .ready
     
     // MARK: - Private Properties
-    private let eventService: EventService
+    private let eventService: EventServiceProtocol
     
     // MARK: - Initialization
-    init(eventService: EventService = EventService()) {
+    init(eventService: EventServiceProtocol) {
         self.eventService = eventService
     }
     
@@ -199,7 +199,7 @@ class EventViewModel: EventViewModelProtocol {
     }
 
     /// Upload une image vers Firebase Storage
-    private func uploadEventImage() async throws -> String? {
+     func uploadEventImage() async throws -> String? {
         guard let image = eventImage else {
             return nil
         }

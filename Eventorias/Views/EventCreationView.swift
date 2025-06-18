@@ -421,14 +421,14 @@ struct EventCreationView: View {
 }
 
 // MARK: - Preview
-
 struct EventCreationView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EventCreationView(eventViewModel: EventViewModel())
+            EventCreationView(eventViewModel: EventViewModel(eventService: EventService()))
         }
     }
 }
+
 
 // MARK: - Helper Views
 

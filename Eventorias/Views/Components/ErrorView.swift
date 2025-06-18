@@ -65,9 +65,9 @@ struct ErrorView: View {
 // Preview mis à jour pour inclure un ViewModel factice
 #Preview {
     // Création d'un EventViewModel factice pour l'aperçu
-    let previewViewModel = EventViewModel()
+    let previewViewModel = AppDependencyContainer.shared.makeEventViewModel()
     
-    return ErrorView(
+    ErrorView(
         errorMessage: "An error has occured,\nplease try again later", 
         onRetry: {}, 
         eventViewModel: previewViewModel

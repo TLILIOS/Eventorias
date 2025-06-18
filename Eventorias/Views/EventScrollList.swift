@@ -36,6 +36,6 @@ struct EventScrollList: View {
 }
 
 #Preview {
-    EventScrollList(eventViewModel: EventViewModel())
+    EventScrollList(eventViewModel: AppDependencyContainer.shared.makeEventViewModel())
         .preferredColorScheme(.dark)
 }
