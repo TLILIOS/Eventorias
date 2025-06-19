@@ -9,7 +9,6 @@ import Foundation
 import SwiftUI
 import CoreLocation
 import MapKit
-import Firebase
 
 @MainActor
 final class EventDetailsViewModel: ObservableObject {

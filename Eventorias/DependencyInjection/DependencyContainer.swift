@@ -24,9 +24,14 @@ protocol DependencyContainerProtocol {
     /// Returns ConfigurationService implementation
     func configurationService() -> ConfigurationService
     
-    /// Returns any other service implementations as needed
-    // func authenticationService() -> AuthenticationServiceProtocol
-    // Add other services as needed for the application
+    /// Returns AuthenticationService implementation
+    func authenticationService() -> AuthenticationServiceProtocol
+    
+    /// Returns KeychainService implementation
+    func keychainService() -> KeychainServiceProtocol
+    
+    /// Returns StorageService implementation
+    func storageService() -> StorageServiceProtocol
 }
 
 /// Default implementation of the dependency container for the main application
@@ -62,7 +67,20 @@ class AppDependencyContainer: DependencyContainerProtocol {
         return DefaultConfigurationService()
     }
     
-    // Add other service providers as needed
+    /// Returns the concrete implementation of AuthenticationService
+    func authenticationService() -> AuthenticationServiceProtocol {
+        return FirebaseAuthenticationService()
+    }
+    
+    /// Returns the concrete implementation of KeychainService
+    func keychainService() -> KeychainServiceProtocol {
+        return KeychainService()
+    }
+    
+    /// Returns the concrete implementation of StorageService
+    func storageService() -> StorageServiceProtocol {
+        return FirebaseStorageService()
+    }
 }
 
 /// Removes the necessity for repetitive container instance passing
@@ -79,6 +97,34 @@ extension DependencyContainerProtocol {
             geocodingService: geocodingService(),
             mapNetworkService: mapNetworkService(),
             configurationService: configurationService()
+        )
+    }
+    
+    /// Creates and configures an AuthenticationViewModel with the container's services
+    func makeAuthenticationViewModel() -> AuthenticationViewModel {
+        return AuthenticationViewModel(
+            authService: authenticationService(),
+            keychainService: keychainService(),
+            storageService: storageService()
+        )
+    }
+    
+    /// Creates and configures a ProfileViewModel with the container's services
+    func makeProfileViewModel() -> ProfileViewModel {
+        return ProfileViewModel(
+            authViewModel: makeAuthenticationViewModel(),
+            authService: authenticationService(),
+            storageService: storageService()
+        )
+    }
+    
+    /// Creates and configures an EventCreationViewModel with the container's services
+    func makeEventCreationViewModel(eventViewModel: EventViewModelProtocol) -> EventCreationViewModel {
+        return EventCreationViewModel(
+            eventViewModel: eventViewModel,
+            authService: authenticationService(),
+            storageService: storageService(),
+            firestoreService: firestoreService()
         )
     }
     

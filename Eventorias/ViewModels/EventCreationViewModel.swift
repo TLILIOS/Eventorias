@@ -7,9 +7,6 @@
 
 import SwiftUI
 import Combine
-import FirebaseStorage
-import FirebaseFirestore
-import FirebaseAuth
 import Photos
 import AVFoundation
 import UIKit
@@ -38,12 +35,12 @@ final class EventCreationViewModel: ObservableObject {
     private let storageService: StorageServiceProtocol
     private let firestoreService: FirestoreServiceProtocol
 
-    // MARK: - Initialization avec injection de dépendance
+    // MARK: - Initialization avec injection de dépendance pure
     init(
         eventViewModel: EventViewModelProtocol,
-        authService: AuthenticationServiceProtocol = FirebaseAuthenticationService(),
-        storageService: StorageServiceProtocol = FirebaseStorageService(),
-        firestoreService: FirestoreServiceProtocol = FirebaseFirestoreService()
+        authService: AuthenticationServiceProtocol,
+        storageService: StorageServiceProtocol,
+        firestoreService: FirestoreServiceProtocol
     ) {
         self.eventViewModel = eventViewModel
         self.authService = authService
@@ -214,10 +211,11 @@ final class EventCreationViewModel: ObservableObject {
         do {
             imageUploadState = .uploading(0.5) // Simulation progression
             
-            let metadata = StorageMetadata()
-            metadata.contentType = "image/jpeg"
+            // Utiliser l'adaptateur au lieu de StorageMetadata directement
+            let metadataAdapter = FirebaseStorageMetadataAdapter()
+            metadataAdapter.contentType = "image/jpeg"
             
-            let downloadURL = try await storageService.uploadImage(imageData, path: imagePath, metadata: metadata)
+            let downloadURL = try await storageService.uploadImage(imageData, path: imagePath, metadata: metadataAdapter)
             
             self.imageURL = downloadURL
             self.imageUploadState = .success

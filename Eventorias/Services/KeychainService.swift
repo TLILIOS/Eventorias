@@ -8,8 +8,12 @@
 import Foundation
 import Security
 
+// Import the protocol from the Protocols directory
+import Foundation
+import Security
+
 /// Service pour gérer le stockage sécurisé des données dans le Keychain
-final class KeychainService {
+final class KeychainService: KeychainServiceProtocol {
     
     // MARK: - Private Properties
     

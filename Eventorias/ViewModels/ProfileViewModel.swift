@@ -6,9 +6,7 @@
 //
 
 import SwiftUI
-import FirebaseAuth
 import Combine
-import FirebaseStorage
 
 /// ViewModel responsable de la gestion des données et actions du profil utilisateur
 @MainActor
@@ -25,34 +23,40 @@ final class ProfileViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let authViewModel: any AuthenticationViewModelProtocol
+    private let authService: AuthenticationServiceProtocol
+    private let storageService: StorageServiceProtocol
     
     // MARK: - Initialization
     
-    init(authViewModel: any AuthenticationViewModelProtocol) {
+    init(authViewModel: any AuthenticationViewModelProtocol, authService: AuthenticationServiceProtocol, storageService: StorageServiceProtocol) {
         self.authViewModel = authViewModel
+        self.authService = authService
+        self.storageService = storageService
         loadUserProfile()
     }
     
     // MARK: - Methods
     
-    /// Charge les informations du profil de l'utilisateur à partir de Firebase Auth
+    /// Charge les informations du profil de l'utilisateur à partir du service d'authentification
     func loadUserProfile() {
         isLoading = true
         
-        if let user = Auth.auth().currentUser {
+        if let user = authService.getCurrentUser() {
+            // Récupérer les données utilisateur depuis l'adaptateur
             displayName = user.displayName ?? "Non défini"
             email = user.email ?? ""
             
-            if let photoURL = user.photoURL {
+            // Utiliser la méthode getPhotoURL() du protocole pour récupérer l'URL de la photo
+            if let photoURL = user.getPhotoURL() {
                 avatarUrl = photoURL
                 print("📷 DEBUG: Photo URL trouvée: \(photoURL)")
             } else {
                 print("⚠️ DEBUG: Aucune photo URL trouvée pour l'utilisateur")
                 // Tenter de récupérer l'image depuis Storage en utilisant l'UID
-                let storageRef = FirebaseStorage.Storage.storage().reference().child("profile_images/\(user.uid).jpg")
+                let imagePath = "profile_images/\(user.uid).jpg"
                 Task {
                     do {
-                        let downloadURL = try await storageRef.downloadURL()
+                        let downloadURL = try await storageService.getDownloadURL(for: imagePath)
                         DispatchQueue.main.async {
                             self.avatarUrl = downloadURL
                             print("📷 DEBUG: Photo URL récupérée depuis Storage: \(downloadURL)")
@@ -87,11 +91,10 @@ final class ProfileViewModel: ObservableObject {
         
         isLoading = true
         
-        let changeRequest = Auth.auth().currentUser?.createProfileChangeRequest()
-        changeRequest?.displayName = newName
-        
         do {
-            try await changeRequest?.commitChanges()
+            // Utilise le service d'authentification pour mettre à jour le profil
+            try await authService.updateUserProfile(displayName: newName, photoURL: nil)
+            
             DispatchQueue.main.async {
                 self.displayName = newName
                 self.isLoading = false
@@ -108,7 +111,7 @@ final class ProfileViewModel: ObservableObject {
     /// Méthode pour déconnecter l'utilisateur
     func signOut() {
         do {
-            try Auth.auth().signOut()
+            try authService.signOut()
             authViewModel.signOut()
         } catch {
             errorMessage = "Failed to sign out: \(error.localizedDescription)"

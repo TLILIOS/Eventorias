@@ -7,9 +7,6 @@
 
 import Foundation
 import SwiftUI
-import Firebase
-import FirebaseAuth
-import FirebaseStorage
 
 @MainActor
 final class AuthenticationViewModel: ObservableObject {
@@ -46,10 +43,13 @@ final class AuthenticationViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Service d'authentification
-    private let authService: AuthenticationService
+    private let authService: AuthenticationServiceProtocol
     
     /// Service Keychain pour le stockage sécurisé des identifiants
-    private let keychainService = KeychainService()
+    private let keychainService: KeychainServiceProtocol
+    
+    /// Service de stockage pour l'upload des images
+    private let storageService: StorageServiceProtocol
     
     /// Indique si l'utilisateur est réellement authentifié dans Firebase
     private var isUserLoggedIn: Bool {
@@ -88,8 +88,10 @@ final class AuthenticationViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(authService: AuthenticationService = AuthenticationService()) {
+    init(authService: AuthenticationServiceProtocol, keychainService: KeychainServiceProtocol, storageService: StorageServiceProtocol) {
         self.authService = authService
+        self.keychainService = keychainService
+        self.storageService = storageService
         checkAuthenticationStatus()
     }
     
@@ -103,7 +105,7 @@ final class AuthenticationViewModel: ObservableObject {
     
     /// Exécute une action d'authentification avec gestion d'erreur
     /// - Parameter action: L'action d'authentification à exécuter
-    private func performAuthAction(_ action: () async throws -> AuthDataResult) async {
+    private func performAuthAction(_ action: () async throws -> AuthDataResultProtocol) async {
         isLoading = true
         errorMessage = ""
         showingError = false
@@ -121,7 +123,7 @@ final class AuthenticationViewModel: ObservableObject {
         isLoading = false
     }
     
-  
+    /// Gestion des erreurs d'authentification
     private func handleAuthError(_ error: Error) {
         // Gestion spécifique des erreurs Firebase
         if let nsError = error as NSError?, nsError.domain == "FIRAuthErrorDomain" {
@@ -185,10 +187,10 @@ final class AuthenticationViewModel: ObservableObject {
         profileImage = nil
     }
     
-    /// Upload l'image de profil vers Firebase Storage et met à jour le profil utilisateur
+    /// Upload l'image de profil et met à jour le profil utilisateur
     /// - Parameter completion: Callback appelé après completion avec succès (true) ou échec (false)
     func uploadProfileImageAndUpdateUser(completion: @escaping (Bool) -> Void) async {
-        guard let currentUser = Auth.auth().currentUser, let image = profileImage else {
+        guard let currentUser = authService.getCurrentUser(), let image = profileImage else {
             completion(false)
             return
         }
@@ -201,23 +203,19 @@ final class AuthenticationViewModel: ObservableObject {
                 throw NSError(domain: "ImageCompression", code: 0, userInfo: [NSLocalizedDescriptionKey: "Échec de compression de l'image"])
             }
             
-            // 2. Créer une référence Firebase Storage
-            let storageRef = FirebaseStorage.Storage.storage().reference().child("profile_images/\(currentUser.uid).jpg")
-            
-            // 3. Uploader l'image
-            let metadata = FirebaseStorage.StorageMetadata()
+            // 2. Uploader l'image via le service de stockage
+            let metadata = StorageMetadata()
             metadata.contentType = "image/jpeg"
             
-            _ = try await storageRef.putDataAsync(imageData, metadata: metadata)
+            let imagePath = "profile_images/\(currentUser.uid).jpg"
+            let downloadURLString = try await storageService.uploadImage(imageData, path: imagePath, metadata: metadata)
             
-            // 4. Récupérer l'URL de téléchargement
-            let downloadURL = try await storageRef.downloadURL()
+            // 3. Mettre à jour le profil utilisateur via le service d'authentification
+            guard let downloadURL = URL(string: downloadURLString) else {
+                throw NSError(domain: "URLParsing", code: 0, userInfo: [NSLocalizedDescriptionKey: "URL invalide"])
+            }
             
-            // 5. Mettre à jour le profil utilisateur
-            let changeRequest = currentUser.createProfileChangeRequest()
-            changeRequest.displayName = username
-            changeRequest.photoURL = downloadURL
-            try await changeRequest.commitChanges()
+            try await authService.updateUserProfile(displayName: username, photoURL: downloadURL)
             
             DispatchQueue.main.async {
                 self.isUploadingImage = false
