@@ -7,6 +7,8 @@
 
 import Foundation
 import SwiftUI
+import FirebaseAuth
+import FirebaseStorage
 
 @MainActor
 final class AuthenticationViewModel: ObservableObject {
@@ -204,11 +206,11 @@ final class AuthenticationViewModel: ObservableObject {
             }
             
             // 2. Uploader l'image via le service de stockage
-            let metadata = StorageMetadata()
-            metadata.contentType = "image/jpeg"
+            let metadataAdapter = FirebaseStorageMetadataAdapter()
+            metadataAdapter.contentType = "image/jpeg"
             
             let imagePath = "profile_images/\(currentUser.uid).jpg"
-            let downloadURLString = try await storageService.uploadImage(imageData, path: imagePath, metadata: metadata)
+            let downloadURLString = try await storageService.uploadImage(imageData, path: imagePath, metadata: metadataAdapter)
             
             // 3. Mettre à jour le profil utilisateur via le service d'authentification
             guard let downloadURL = URL(string: downloadURLString) else {
@@ -331,15 +333,15 @@ final class AuthenticationViewModel: ObservableObject {
         }
         
         // Supprimer d'abord les identifiants existants pour éviter des conflits
-        _ = keychainService.delete(for: emailKeychainKey)
-        _ = keychainService.delete(for: passwordKeychainKey)
+        _ = try? keychainService.delete(for: emailKeychainKey)
+        _ = try? keychainService.delete(for: passwordKeychainKey)
         
         // Attendre un peu pour s'assurer que la suppression est terminée
         Thread.sleep(forTimeInterval: 0.1)
         
         // Stocker l'email et le mot de passe dans le Keychain
-        _ = keychainService.save(email, for: emailKeychainKey)
-        _ = keychainService.save(password, for: passwordKeychainKey)
+        _ = try? keychainService.save(email, for: emailKeychainKey)
+        _ = try? keychainService.save(password, for: passwordKeychainKey)
         
         // Mettre à jour les champs actuels pour réfléter les valeurs stockées
         DispatchQueue.main.async {
@@ -354,15 +356,15 @@ final class AuthenticationViewModel: ObservableObject {
         let testPassword = "password123"
         
         // Supprimer d'abord les identifiants existants pour éviter des conflits
-        _ = keychainService.delete(for: emailKeychainKey)
-        _ = keychainService.delete(for: passwordKeychainKey)
+        _ = try? keychainService.delete(for: emailKeychainKey)
+        _ = try? keychainService.delete(for: passwordKeychainKey)
         
         // Attendre un peu pour s'assurer que la suppression est terminée
         Thread.sleep(forTimeInterval: 0.1)
         
         // Stocker les nouveaux identifiants
-        _ = keychainService.save(testEmail, for: emailKeychainKey)
-        _ = keychainService.save(testPassword, for: passwordKeychainKey)
+        _ = try? keychainService.save(testEmail, for: emailKeychainKey)
+        _ = try? keychainService.save(testPassword, for: passwordKeychainKey)
         
         // Mettre à jour les champs immédiatement
         DispatchQueue.main.async {
@@ -385,8 +387,8 @@ final class AuthenticationViewModel: ObservableObject {
         #endif
         
         if hasCredentials {
-            if let storedEmail = keychainService.retrieve(for: emailKeychainKey),
-               let storedPassword = keychainService.retrieve(for: passwordKeychainKey),
+            if let storedEmail = try? keychainService.retrieve(for: emailKeychainKey),
+               let storedPassword = try? keychainService.retrieve(for: passwordKeychainKey),
                !storedEmail.isEmpty && !storedPassword.isEmpty {
                 
                 // Forcer la mise à jour sur le thread principal

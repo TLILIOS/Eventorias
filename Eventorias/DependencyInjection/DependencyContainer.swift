@@ -12,8 +12,8 @@ protocol DependencyContainerProtocol {
     /// Returns an event service implementation
     func eventService() -> EventServiceProtocol
     
-    /// Returns EventFirestoreService implementation
-    func firestoreService() -> EventFirestoreService
+    /// Returns FirestoreService implementation
+    func firestoreService() -> FirestoreServiceProtocol
     
     /// Returns GeocodingService implementation
     func geocodingService() -> GeocodingService
@@ -32,12 +32,18 @@ protocol DependencyContainerProtocol {
     
     /// Returns StorageService implementation
     func storageService() -> StorageServiceProtocol
+    
+    /// Returns APIService implementation
+    func apiService() -> APIServiceProtocol
 }
 
 /// Default implementation of the dependency container for the main application
 class AppDependencyContainer: DependencyContainerProtocol {
     /// Singleton instance for app-wide access
     static let shared = AppDependencyContainer()
+    
+    // Cache des services pour éviter de créer plusieurs instances
+    private var apiServiceInstance: APIServiceProtocol?
     
     /// Private initializer to enforce singleton pattern
     private init() {}
@@ -47,8 +53,8 @@ class AppDependencyContainer: DependencyContainerProtocol {
         return EventService()
     }
     
-    /// Returns the concrete implementation of EventFirestoreService
-    func firestoreService() -> EventFirestoreService {
+    /// Returns the concrete implementation of FirestoreService
+    func firestoreService() -> FirestoreServiceProtocol {
         return DefaultEventFirestoreService()
     }
     
@@ -80,6 +86,16 @@ class AppDependencyContainer: DependencyContainerProtocol {
     /// Returns the concrete implementation of StorageService
     func storageService() -> StorageServiceProtocol {
         return FirebaseStorageService()
+    }
+    
+    /// Returns the concrete implementation of APIService
+    func apiService() -> APIServiceProtocol {
+        if let existingService = apiServiceInstance {
+            return existingService
+        }
+        let newService = DefaultAPIService()
+        apiServiceInstance = newService
+        return newService
     }
 }
 
@@ -124,7 +140,7 @@ extension DependencyContainerProtocol {
             eventViewModel: eventViewModel,
             authService: authenticationService(),
             storageService: storageService(),
-            firestoreService: firestoreService()
+            firestoreService: firestoreService() as! FirestoreServiceProtocol
         )
     }
     

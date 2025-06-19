@@ -303,5 +303,5 @@ struct StyledPasswordField: View {
 
 #Preview {
     EmailSignInView()
-        .environmentObject(AuthenticationViewModel())
+        .environmentObject(AppDependencyContainer.shared.makeAuthenticationViewModel())
 }

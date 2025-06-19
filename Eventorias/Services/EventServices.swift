@@ -27,22 +27,7 @@ protocol PlacemarkProtocol {
     var coordinate: CLLocationCoordinate2D? { get }
 }
 
-// MARK: - Firestore Service Protocol
-
-/// Protocol for handling Firestore database operations related to events
-protocol EventFirestoreService {
-    /// Get an event document by its ID
-    /// - Parameter eventID: ID of the event to fetch
-    /// - Returns: Document snapshot containing event data
-    /// - Throws: Error if retrieval fails
-    func getEventDocument(eventID: String) async throws -> DocumentSnapshotProtocol
-    
-    /// Get a sample event by ID when it's not found in Firestore
-    /// - Parameter eventID: ID of the event to fetch from samples
-    /// - Returns: Sample event if found
-    /// - Throws: Error if no matching sample event exists
-    func getSampleEvent(eventID: String) throws -> Event
-}
+// MARK: - Service Implementations
 
 // MARK: - Geocoding Service Protocol
 
@@ -112,9 +97,21 @@ class FirebaseDocumentSnapshotWrapper: DocumentSnapshotProtocol {
 
 // MARK: - Default Implementations
 
-/// Default implementation of EventFirestoreService using Firebase
-class DefaultEventFirestoreService: EventFirestoreService {
+/// Default implementation of FirestoreServiceProtocol using Firebase
+class DefaultEventFirestoreService: FirestoreServiceProtocol {
     private let db = Firestore.firestore()
+    
+    func createEvent(_ event: Event) async throws {
+        // Unwrapping sécurisé avec valeur par défaut
+        let eventRef = db.collection("events").document(event.id ?? UUID().uuidString)
+        try await eventRef.setData(from: event)
+    }
+    
+    func updateEvent(_ event: Event) async throws {
+        // Unwrapping sécurisé avec valeur par défaut
+        let eventRef = db.collection("events").document(event.id ?? UUID().uuidString)
+        try await eventRef.setData(from: event)
+    }
     
     func getEventDocument(eventID: String) async throws -> DocumentSnapshotProtocol {
         let snapshot = try await db.collection("events").document(eventID).getDocument()

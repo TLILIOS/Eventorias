@@ -50,6 +50,6 @@ struct EventList: View {
 // MARK: - Preview
 #Preview {
     EventList()
-        .environmentObject(AuthenticationViewModel())
+        .environmentObject(AppDependencyContainer.shared.makeAuthenticationViewModel())
         .preferredColorScheme(.dark)
 }

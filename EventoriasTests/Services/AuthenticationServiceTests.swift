@@ -12,7 +12,7 @@ import FirebaseAuth
 
 class AuthenticationServiceTests: XCTestCase {
     
-    var authService: AuthenticationService!
+    var authService: AuthenticationServiceProtocol!
     var mockAuth: MockAuthService!
     
     override func setUp() {

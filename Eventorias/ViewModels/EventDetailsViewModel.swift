@@ -14,7 +14,7 @@ import MapKit
 final class EventDetailsViewModel: ObservableObject {
     // MARK: - Dependencies
     
-    private let firestoreService: EventFirestoreService
+    private let firestoreService: FirestoreServiceProtocol
     private let geocodingService: GeocodingService
     private let mapNetworkService: MapNetworkService
     private let configurationService: ConfigurationService
@@ -47,7 +47,7 @@ final class EventDetailsViewModel: ObservableObject {
     ///   - geocodingService: Service pour géocoder les adresses
     ///   - mapNetworkService: Service pour gérer les requêtes réseau de carte
     ///   - configurationService: Service pour accéder aux configurations de l'application
-    init(firestoreService: EventFirestoreService,
+    init(firestoreService: FirestoreServiceProtocol,
          geocodingService: GeocodingService,
          mapNetworkService: MapNetworkService,
          configurationService: ConfigurationService) {

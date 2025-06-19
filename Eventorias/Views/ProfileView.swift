@@ -16,9 +16,10 @@ struct ProfileView: View {
     
     init(selectedTab: Binding<Int>) {
         self._selectedTab = selectedTab
-        // Initialisation temporaire du ProfileViewModel avec un AuthenticationViewModel vide pour le preview
-        // La vraie instance sera injectée dans onAppear
-        self._profileViewModel = StateObject(wrappedValue: ProfileViewModel(authViewModel: AuthenticationViewModel()))
+        // Utiliser le container de dépendances pour créer le ViewModel
+        // La vraie instance avec l'authViewModel sera injectée dans onAppear
+        let container = AppDependencyContainer.shared
+        self._profileViewModel = StateObject(wrappedValue: container.makeProfileViewModel())
     }
     
     func signOut() {
@@ -153,19 +154,14 @@ struct ProfileView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
-                // Créer une nouvelle instance avec l'authViewModel injecté
-                let newProfileViewModel = ProfileViewModel(authViewModel: authViewModel)
+                // Utiliser le container de dépendances pour créer le ViewModel
+                let container = AppDependencyContainer.shared
+                
+                // Configurer le ProfileViewModel avec l'authViewModel injecté
+                profileViewModel.updateAuthenticationViewModel(authViewModel)
                 
                 // Forcer le rechargement des données du profil
-                newProfileViewModel.loadUserProfile()
-                
-                // Mettre à jour notre profileViewModel avec les nouvelles données
-                DispatchQueue.main.async {
-                    profileViewModel.displayName = newProfileViewModel.displayName
-                    profileViewModel.email = newProfileViewModel.email
-                    profileViewModel.avatarUrl = newProfileViewModel.avatarUrl
-                    profileViewModel.notificationsEnabled = newProfileViewModel.notificationsEnabled
-                }
+                profileViewModel.loadUserProfile()
             }
             .alert("Déconnexion", isPresented: $showingSignOutAlert) {
                 Button("Annuler", role: .cancel) { }
@@ -181,5 +177,5 @@ struct ProfileView: View {
 
 #Preview {
     ProfileView(selectedTab: .constant(1))
-        .environmentObject(AuthenticationViewModel())
+        .environmentObject(AppDependencyContainer.shared.makeAuthenticationViewModel())
 }

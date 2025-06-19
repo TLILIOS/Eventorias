@@ -44,7 +44,7 @@ struct EventCreationView: View {
     // MARK: - Initialization
     
     init(eventViewModel: EventViewModel) {
-        _viewModel = StateObject(wrappedValue: EventCreationViewModel(eventViewModel: eventViewModel))
+        _viewModel = StateObject(wrappedValue: AppDependencyContainer.shared.makeEventCreationViewModel(eventViewModel: eventViewModel))
     }
     
     // MARK: - Body

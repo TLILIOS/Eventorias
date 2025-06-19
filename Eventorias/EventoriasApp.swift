@@ -27,7 +27,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct EventoriasApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-    @StateObject private var authViewModel = AuthenticationViewModel()
+    @StateObject private var authViewModel = AppDependencyContainer.shared.makeAuthenticationViewModel()
     @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {

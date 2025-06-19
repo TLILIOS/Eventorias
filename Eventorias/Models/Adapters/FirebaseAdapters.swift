@@ -99,4 +99,9 @@ final class FirebaseAuthDataResultAdapter: AuthDataResultProtocol {
 // MARK: - User Extension
 
 /// Extension pour convertir User de Firebase en UserProtocol
-extension User: UserProtocol {}
+extension User: UserProtocol {
+    /// Retourne l'URL de la photo de profil
+    public func getPhotoURL() -> URL? {
+        return photoURL
+    }
+}

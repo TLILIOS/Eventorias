@@ -6,16 +6,19 @@
 //
 
 import SwiftUI
-import Firebase
 
 struct SignInView: View {
-    @StateObject private var viewModel = AuthenticationViewModel()
+    @StateObject private var viewModel: AuthenticationViewModel
     @State private var showingEmailSignIn = false
     @State private var hasLoadedCredentials = false
     
     init() {
-        // Créer une instance temporaire pour charger les identifiants avant même le chargement de la vue
-        let tempViewModel = AuthenticationViewModel()
+        // Utiliser le container de dépendances pour créer le ViewModel
+        let container = AppDependencyContainer.shared
+        self._viewModel = StateObject(wrappedValue: container.makeAuthenticationViewModel())
+        
+        // Charger les identifiants avant le chargement de la vue
+        let tempViewModel = container.makeAuthenticationViewModel()
         tempViewModel.loadStoredCredentials()
     }
     
@@ -82,5 +85,6 @@ struct SignInView: View {
 }
 
 #Preview {
+    // Utiliser le container de dépendances pour le preview également
     SignInView()
 }

@@ -22,7 +22,7 @@ final class ProfileViewModel: ObservableObject {
     
     // MARK: - Dependencies
     
-    private let authViewModel: any AuthenticationViewModelProtocol
+    private var authViewModel: any AuthenticationViewModelProtocol
     private let authService: AuthenticationServiceProtocol
     private let storageService: StorageServiceProtocol
     
@@ -81,30 +81,28 @@ final class ProfileViewModel: ObservableObject {
         // ou une autre base de données persistante
     }
     
+    /// Met à jour la référence au AuthenticationViewModel
+    /// - Parameter viewModel: Nouvelle référence au AuthenticationViewModel
+    func updateAuthenticationViewModel(_ viewModel: any AuthenticationViewModelProtocol) {
+        self.authViewModel = viewModel
+    }
+    
     /// Met à jour le nom d'affichage de l'utilisateur
-    /// - Parameter newName: Nouveau nom d'affichage
-    func updateDisplayName(_ newName: String) async {
-        guard !newName.isEmpty else { 
-            errorMessage = "Display name cannot be empty"
-            return 
-        }
-        
+    /// - Parameter name: Nouveau nom d'affichage
+    func updateDisplayName(_ name: String) async {
         isLoading = true
+        defer { isLoading = false }
         
         do {
-            // Utilise le service d'authentification pour mettre à jour le profil
-            try await authService.updateUserProfile(displayName: newName, photoURL: nil)
+            // Mise à jour du nom d'affichage via le service
+            try await authService.updateUserProfile(displayName: name, photoURL: nil)
             
-            DispatchQueue.main.async {
-                self.displayName = newName
-                self.isLoading = false
-                self.errorMessage = ""
-            }
+            // Mettre à jour l'état local
+            self.displayName = name
+            
+            // Afficher un message de succès ou effectuer d'autres actions si nécessaire
         } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = "Failed to update display name: \(error.localizedDescription)"
-                self.isLoading = false
-            }
+            errorMessage = "Erreur lors de la mise à jour du nom d'affichage: \(error.localizedDescription)"
         }
     }
     

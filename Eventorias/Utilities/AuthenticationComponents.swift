@@ -96,7 +96,7 @@ struct ActionSection: View {
 
 /// Vue principale d'authentification
 struct AuthenticationView: View {
-    @StateObject private var viewModel = AuthenticationViewModel()
+    @StateObject private var viewModel = AppDependencyContainer.shared.makeAuthenticationViewModel()
     @State private var isSignUp = false
     
     var body: some View {
