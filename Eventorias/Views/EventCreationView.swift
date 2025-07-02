@@ -136,19 +136,17 @@ struct EventCreationView: View {
                     viewModel.eventDescription = newValue
                 }
             
-            // Date and time fields in a row
-            HStack(spacing: 10) {
-                // Date field
-                StyledDatePicker(date: $date, components: [.date])
-                    .environment(\.locale, Locale(identifier: "en_US"))
-                    .onChange(of: date) { newValue in
-                        viewModel.eventDate = newValue
-                    }
-                
-                // Time field
-                StyledDatePicker(date: $date, components: [.hourAndMinute])
+            // Date and time picker (nouvelle version avec cases séparées)
+            StyledDatePicker(
+                date: $date,
+                label: "Date et heure de l'événement",
+                showTimeSelector: true
+            )
+            .environment(\.locale, Locale(identifier: "en_US"))
+            .onChange(of: date) { newValue in
+                viewModel.eventDate = newValue
             }
-
+            
             // Address field
             StyledTextField(placeholder: "Enter full address", text: $address)
                 .onChange(of: address) { newValue in
@@ -156,7 +154,7 @@ struct EventCreationView: View {
                 }
         }
     }
-    
+
     private var imageButtons: some View {
         VStack {
             HStack(spacing: 30) {

@@ -67,12 +67,12 @@ struct SignInView: View {
                 EmailSignInView()
                     .environmentObject(viewModel)
             }
-            .alert("Error", isPresented: $viewModel.showingError) {
+            .alert("Error", isPresented: .init(get: { viewModel.errorMessage != nil }, set: { _ in viewModel.dismissError() })) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(viewModel.errorMessage)
+                Text(viewModel.errorMessage ?? "An error occurred")
             }
-            .navigationDestination(isPresented: $viewModel.isAuthenticated) {
+            .navigationDestination(isPresented: $viewModel.userIsLoggedIn) {
                 EventList()
                     .environmentObject(viewModel)
             }

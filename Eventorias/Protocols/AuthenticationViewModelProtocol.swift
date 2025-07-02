@@ -1,20 +1,26 @@
-// 
-// AuthenticationViewModelProtocol.swift
-// Eventorias
-//
-// Created on 13/06/2025.
-//
-
 import Foundation
+import Combine
+@MainActor
+protocol AuthenticationViewModelProtocol: ObservableObject {
+    var email: String { get set }
+    var password: String { get set }
+    var userIsLoggedIn: Bool { get }
+    var isLoading: Bool { get }
+    var errorMessage: String? { get }
 
-/// Protocole définissant l'interface utilisée par ProfileViewModel pour interagir avec AuthenticationViewModel
-protocol AuthenticationViewModelProtocol: AnyObject {
-    // État d'authentification
-    var isAuthenticated: Bool { get }
+    @MainActor
+    func signIn() async
+
+    @MainActor
+    func signOut() async
     
-    // Méthode de déconnexion
-    func signOut()
-}
+    @MainActor
+    func quickSignIn() async
+    
+    @MainActor
+    func signOutWithoutClearingForm() async
 
-// Extension pour rendre AuthenticationViewModel conforme au protocole
-extension AuthenticationViewModel: AuthenticationViewModelProtocol {}
+    func storeCredentialsExplicit(email: String, password: String)
+    func loadStoredCredentials()
+    func dismissError()
+}

@@ -9,11 +9,11 @@ import SwiftUI
 
 struct EventRowView: View {
     let event: Event
-    
+    var backgroundColor: Color = Color("DarkGray")
     var body: some View {
         HStack(spacing: 12) {
             // Photo de profil circulaire
-            AsyncImage(url: URL(string: event.organizerImageURL ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: event.organizerImageURL ?? "")) { phase in
                 switch phase {
                 case .empty:
                     Circle()
@@ -58,7 +58,7 @@ struct EventRowView: View {
             Spacer()
             
             // Image de l'événement
-            AsyncImage(url: URL(string: event.imageURL ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: event.imageURL ?? "")) { phase in
                 switch phase {
                 case .empty:
                     RoundedRectangle(cornerRadius: 8)
@@ -89,7 +89,7 @@ struct EventRowView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
         }
-        .background(Color("DarkGry"))
+        .background(backgroundColor)
         .cornerRadius(12)
     }
 }

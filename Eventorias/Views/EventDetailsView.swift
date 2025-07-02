@@ -12,7 +12,7 @@ struct EventDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = AppDependencyContainer.shared.makeEventDetailsViewModel()
     let eventID: String
-    
+    var backgroundColor: Color = Color("DarkGray")
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -83,7 +83,7 @@ struct EventDetailsView: View {
 
     private func eventImageSection(_ event: Event) -> some View {
         ZStack(alignment: .bottom) {
-            AsyncImage(url: URL(string: event.imageURL ?? "")) { phase in
+            CachedAsyncImage(url: URL(string: event.imageURL ?? "")) { phase in
                 switch phase {
                 case .empty:
                     Rectangle()
@@ -167,7 +167,7 @@ struct EventDetailsView: View {
                 .fill(Color.black.opacity(0.4))
                 
             if let imageURL = URL(string: event.organizerImageURL ?? "") {
-                AsyncImage(url: imageURL) { phase in
+                CachedAsyncImage(url: imageURL) { phase in
                     switch phase {
                     case .empty:
                         ProgressView()
@@ -239,18 +239,19 @@ struct EventDetailsView: View {
             if viewModel.isLoadingMap {
                 // État de chargement
                 Rectangle()
-                    .fill(Color("DarkGry"))
+                    .fill(backgroundColor)
                     .frame(height: 200)
                     .overlay {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     }
             } else if let mapImageURL = viewModel.mapImageURL, viewModel.isMapAPIKeyConfigured {
+                // Utiliser AsyncImage natif pour les cartes (plus compatible avec Google Maps)
                 AsyncImage(url: mapImageURL) { phase in
                     switch phase {
                     case .empty:
                         Rectangle()
-                            .fill(Color("DarkGry"))
+                            .fill(backgroundColor)
                             .overlay {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -261,7 +262,7 @@ struct EventDetailsView: View {
                             .aspectRatio(contentMode: .fill)
                     case .failure:
                         Rectangle()
-                            .fill(Color("DarkGry"))
+                            .fill(backgroundColor)
                             .overlay {
                                 VStack(spacing: 8) {
                                     Image(systemName: "exclamationmark.triangle")
@@ -308,8 +309,9 @@ struct EventDetailsView: View {
                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 )
             } else {
+                // Cas où la carte n'est pas disponible (URL null ou API non configurée)
                 Rectangle()
-                    .fill(Color("DarkGry"))
+                    .fill(backgroundColor)
                     .cornerRadius(8)
                     .overlay {
                         VStack(spacing: 6) {
@@ -323,6 +325,22 @@ struct EventDetailsView: View {
                                 Text("Carte indisponible")
                                     .font(.caption2)
                             }
+                            
+                            Button(action: {
+                                Task {
+                                    // Forcer le rechargement de la carte
+                                    await viewModel.geocodeEventLocation()
+                                }
+                            }) {
+                                Label("Réessayer", systemImage: "arrow.counterclockwise")
+                                    .font(.caption2)
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background(Color("Red").opacity(0.8))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(4)
+                            }
+                            .padding(.top, 8)
                         }
                         .foregroundColor(.white.opacity(0.7))
                     }

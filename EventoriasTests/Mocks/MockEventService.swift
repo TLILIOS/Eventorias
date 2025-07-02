@@ -1,10 +1,11 @@
 import Foundation
-import UIKit
 import CoreLocation
+import XCTest
 @testable import Eventorias
 
-class MockEventService: EventServiceProtocol {
-    // Tracking properties
+/// Mock pour EventServiceProtocol facilitant les tests unitaires
+final class MockEventService: EventServiceProtocol {
+    // Tracking des appels pour la vérification dans les tests
     var fetchEventsCalled = false
     var searchEventsCalled = false
     var filterEventsByCategoryCalled = false
@@ -15,148 +16,167 @@ class MockEventService: EventServiceProtocol {
     var uploadImageCalled = false
     var getCoordinatesForAddressCalled = false
     
-    // Mock responses
-    var mockEvents: [Event] = []
-    var mockIsEmpty = false
-    var mockEventId = "mock_event_id"
-    var mockImageURL: String? = "https://example.com/mock_image.jpg"
-    var mockCoordinates = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522) // Paris coordinates
-    var mockError: Error?
+    // Variables pour contrôler le comportement des fonctions
+    var shouldThrowError = false
+    var mockError: Error = NSError(domain: "MockEventError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Erreur simulée d'événement"])
     
-    // Result-based mocking for better test control
-    var fetchEventsResult: Result<[Event], Error>?
+    // Callbacks pour les tests
+    var onImageUploaded: ((String) -> Void)? = nil
+    var captureImageUploadState: (() -> Void)? = nil
     
-    // Search parameters
-    var lastSearchQuery: String?
-    var lastCategory: String?
-    var lastSortAscending: Bool?
-    var lastEventTitle: String?
-    var lastEventDescription: String?
-    var lastEventDate: Date?
-    var lastEventLocation: String?
-    var lastImageURL: String?
+    // Données à retourner par les méthodes mock
+    var eventsToReturn: [Event] = []
+    var isCollectionEmptyToReturn = true
+    var eventIdToReturn = "mock-event-id"
+    var imageURLToReturn = "https://example.com/mock-image.jpg"
+    var coordinatesToReturn = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522) // Paris
     
-    // Implement EventServiceProtocol methods
+    /// Fetches all events from the data source
     func fetchEvents() async throws -> [Event] {
         fetchEventsCalled = true
         
-        // Use fetchEventsResult if available, otherwise fall back to the original implementation
-        if let result = fetchEventsResult {
-            switch result {
-            case .success(let events):
-                return events
-            case .failure(let error):
-                throw error
-            }
+        if shouldThrowError {
+            throw mockError
         }
         
-        // Original implementation as fallback
-        if let error = mockError {
-            throw error
-        }
-        
-        return mockEvents
+        return eventsToReturn
     }
     
+    /// Searches for events based on a query string
     func searchEvents(query: String) async throws -> [Event] {
         searchEventsCalled = true
-        lastSearchQuery = query
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        return mockEvents.filter { $0.title.lowercased().contains(query.lowercased()) }
+        // Filtrer les événements qui correspondent à la requête
+        return eventsToReturn.filter { $0.title.lowercased().contains(query.lowercased()) }
     }
     
+    /// Filters events by category
     func filterEventsByCategory(category: String) async throws -> [Event] {
         filterEventsByCategoryCalled = true
-        lastCategory = category
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        return mockEvents.filter { $0.category == category }
+        // Filtrer les événements par catégorie
+        return eventsToReturn.filter { $0.category == category }
     }
     
+    /// Gets events sorted by date
     func getEventsSortedByDate(ascending: Bool) async throws -> [Event] {
         getEventsSortedByDateCalled = true
-        lastSortAscending = ascending
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        return mockEvents.sorted { lhs, rhs in
-            ascending ? lhs.date < rhs.date : lhs.date > rhs.date
+        // Trier les événements par date
+        return eventsToReturn.sorted { event1, event2 in
+            if ascending {
+                return event1.date < event2.date
+            } else {
+                return event1.date > event2.date
+            }
         }
     }
     
+    /// Adds sample events to the data source
     func addSampleEvents() async throws {
         addSampleEventsCalled = true
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
+        
+        // Ne pas écraser les événements configurés pour les tests
+        // Si aucun événement n'est configuré, utiliser les échantillons
+        if eventsToReturn.isEmpty {
+            eventsToReturn = Event.sampleEvents
+        }
+        // Sinon, conserver les événements déjà configurés pour le test
     }
     
+    /// Checks if the events collection is empty
     func isEventsCollectionEmpty() async throws -> Bool {
         isEventsCollectionEmptyCalled = true
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        return mockIsEmpty
+        return isCollectionEmptyToReturn
     }
     
+    /// Creates a new event
     func createEvent(title: String, description: String, date: Date, location: String, imageURL: String?) async throws -> String {
         createEventCalled = true
-        lastEventTitle = title
-        lastEventDescription = description
-        lastEventDate = date
-        lastEventLocation = location
-        lastImageURL = imageURL
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        return mockEventId
+        // Créer un nouvel événement et l'ajouter à notre collection de test
+        let newEvent = Event(
+            id: eventIdToReturn,
+            title: title,
+            description: description,
+            date: date,
+            location: location,
+            organizer: "Test Organizer",
+            organizerImageURL: nil,
+            imageURL: imageURL,
+            category: "Autre",
+            tags: ["Test"],
+            createdAt: Date()
+        )
+        
+        eventsToReturn.append(newEvent)
+        return eventIdToReturn
     }
     
-    // Upload image implementation
+    /// Uploads an image to storage
     func uploadImage(imageData: Data) async throws -> String {
         uploadImageCalled = true
-        print("🔍 MockEventService.uploadImage called")
-        print("  - imageData size: \(imageData.count)")
-        print("  - mockImageURL: \(String(describing: mockImageURL))")
         
-        if let error = mockError {
-            print("  - throwing error: \(error)")
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        guard let imageURL = mockImageURL else {
-            let error = NSError(domain: "MockError", code: 0, userInfo: [NSLocalizedDescriptionKey: "No mock image URL provided"])
-            print("  - throwing no URL error")
-            throw error
-        }
+        // Capturer l'état juste avant de retourner l'URL (important pour les tests)
+        captureImageUploadState?() 
         
-        print("  - returning URL: \(imageURL)")
-        return imageURL
+        // Appeler le callback onImageUploaded s'il existe
+        onImageUploaded?(imageURLToReturn)
+        
+        return imageURLToReturn
     }
-
     
+    /// Gets coordinates for an address via geocoding
     func getCoordinatesForAddress(_ address: String) async throws -> CLLocationCoordinate2D {
         getCoordinatesForAddressCalled = true
-        lastEventLocation = address
         
-        if let error = mockError {
-            throw error
+        if shouldThrowError {
+            throw mockError
         }
         
-        return mockCoordinates
+        return coordinatesToReturn
+    }
+    
+    // Méthodes helper pour les tests
+    func reset() {
+        fetchEventsCalled = false
+        searchEventsCalled = false
+        filterEventsByCategoryCalled = false
+        getEventsSortedByDateCalled = false
+        addSampleEventsCalled = false
+        isEventsCollectionEmptyCalled = false
+        createEventCalled = false
+        uploadImageCalled = false
+        getCoordinatesForAddressCalled = false
+        shouldThrowError = false
     }
 }

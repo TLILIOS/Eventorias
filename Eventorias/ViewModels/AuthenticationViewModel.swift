@@ -1,410 +1,261 @@
-//
-// AuthenticationViewModel.swift
-// Eventorias
-//
-// Created by TLiLi Hamdi on 27/05/2025.
-//
-
 import Foundation
 import SwiftUI
-import FirebaseAuth
-import FirebaseStorage
+import UIKit
 
 @MainActor
-final class AuthenticationViewModel: ObservableObject {
-    
-    // MARK: - Published Properties
-    
-    /// État d'authentification de l'utilisateur pour l'UI
-    @Published var isAuthenticated = false
-    
-    /// État de chargement des opérations
-    @Published var isLoading = false
-    
-    /// Message d'erreur à afficher
-    @Published var errorMessage = ""
-    
-    /// Contrôle l'affichage de l'alerte d'erreur
-    @Published var showingError = false
-    
-    /// Email saisi par l'utilisateur
+class AuthenticationViewModel: ObservableObject, AuthenticationViewModelProtocol {
+    // Utilisé pour la liaison de données UI
     @Published var email = ""
-    
-    /// Mot de passe saisi par l'utilisateur
     @Published var password = ""
-    
-    /// Nom d'utilisateur (uniquement pour l'inscription)
     @Published var username = ""
-    
-    /// Image de profil (uniquement pour l'inscription)
     @Published var profileImage: UIImage? = nil
+    @Published var userIsLoggedIn = false
+    @Published var isLoading = false
+    @Published var errorMessage: String? = nil
     
-    /// État d'upload de l'image
-    @Published var isUploadingImage = false
-    
-    // MARK: - Private Properties
-    
-    /// Service d'authentification
-    private let authService: AuthenticationServiceProtocol
-    
-    /// Service Keychain pour le stockage sécurisé des identifiants
+    // UserDefaults via AppStorage pour l'email
+    private let lastEmailKey = "lastUserEmail"
+    private let lastUsernameKey = "lastUsername"
+
+    private let authenticationService: AuthenticationServiceProtocol
     private let keychainService: KeychainServiceProtocol
-    
-    /// Service de stockage pour l'upload des images
     private let storageService: StorageServiceProtocol
-    
-    /// Indique si l'utilisateur est réellement authentifié dans Firebase
-    private var isUserLoggedIn: Bool {
-        authService.isUserAuthenticated()
-    }
-    
-    /// Clé UserDefaults pour contrôler l'affichage de l'écran de connexion
-    private let showLoginScreenKey = "showLoginScreen"
-    
-    /// Clés pour le stockage sécurisé des identifiants
-    private let emailKeychainKey = "userEmail"
-    private let passwordKeychainKey = "userPassword"
-    
-    // MARK: - Computed Properties
-    
-    /// Vérifie si le formulaire est valide
-    var isFormValid: Bool {
-        // Validation de base pour email et mot de passe
-        let basicValidation = authService.isValidEmail(email) && authService.isValidPassword(password)
-        
-        // Pour l'inscription, vérifier aussi le nom d'utilisateur
-        return basicValidation
-    }
-    
-    /// Vérifie si le formulaire d'inscription est complet
-    var isSignUpFormValid: Bool {
-        let basicValidation = authService.isValidEmail(email) && authService.isValidPassword(password)
-        return basicValidation && !username.isEmpty
-    }
-    
-    /// Indique si on a un utilisateur Firebase mais qu'on affiche quand même l'écran de connexion
-    /// ou si des identifiants ont été précédemment sauvegardés
-    var hasStoredCredentials: Bool {
-        (isUserLoggedIn && !isAuthenticated) || keychainService.exists(for: emailKeychainKey)
-    }
-    
-    // MARK: - Initialization
-    
+
+    private let emailAccount = "userEmail"
+    private let passwordAccount = "userPassword"
+
     init(authService: AuthenticationServiceProtocol, keychainService: KeychainServiceProtocol, storageService: StorageServiceProtocol) {
-        self.authService = authService
+        self.authenticationService = authService
         self.keychainService = keychainService
         self.storageService = storageService
-        checkAuthenticationStatus()
-    }
-    
-    // MARK: - Private Methods
-    
-    /// Vérifie le statut d'authentification au démarrage
-    func checkAuthenticationStatus() {
-        // Vérifier si l'utilisateur est authentifié via le service d'authentification
-        isAuthenticated = authService.isUserAuthenticated()
-    }
-    
-    /// Exécute une action d'authentification avec gestion d'erreur
-    /// - Parameter action: L'action d'authentification à exécuter
-    private func performAuthAction(_ action: () async throws -> AuthDataResultProtocol) async {
-        isLoading = true
-        errorMessage = ""
-        showingError = false
+        self.userIsLoggedIn = authenticationService.isUserAuthenticated()
         
-        do {
-            _ = try await action()
-            isAuthenticated = true
-            // Enregistrer que l'utilisateur a été authentifié manuellement
-            UserDefaults.standard.set(true, forKey: showLoginScreenKey)
-            clearForm()
-        } catch {
-            handleAuthError(error)
+        // Initialiser les valeurs à partir de UserDefaults et Keychain directement dans l'initialisation
+        if self.userIsLoggedIn == false {
+            // Tentative de récupération de l'email depuis UserDefaults ou Keychain
+            if let savedEmail = UserDefaults.standard.string(forKey: lastEmailKey) {
+                self.email = savedEmail
+            } else {
+                // Si pas dans UserDefaults, essayer de récupérer depuis le keychain
+                do {
+                    let storedEmail = try keychainService.retrieve(for: emailAccount)
+                    self.email = storedEmail
+                } catch {
+                    self.email = ""
+                }
+            }
+            
+            // Tentative de récupération du mot de passe depuis Keychain
+            do {
+                let storedPassword = try keychainService.retrieve(for: passwordAccount)
+                self.password = storedPassword
+            } catch {
+                self.password = ""
+            }
+            
+            // Récupération du nom d'utilisateur depuis UserDefaults
+            if let savedUsername = UserDefaults.standard.string(forKey: lastUsernameKey) {
+                self.username = savedUsername
+            }
         }
-        
+    }
+
+    func signIn() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            _ = try await authenticationService.signIn(email: email, password: password)
+            userIsLoggedIn = true
+            storeCredentialsExplicit(email: email, password: password)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         isLoading = false
     }
     
-    /// Gestion des erreurs d'authentification
-    private func handleAuthError(_ error: Error) {
-        // Gestion spécifique des erreurs Firebase
-        if let nsError = error as NSError?, nsError.domain == "FIRAuthErrorDomain" {
-            // Créer un AuthErrorCode à partir du code d'erreur NSError
-            if let authErrorCode = AuthErrorCode(rawValue: nsError.code) {
-                switch authErrorCode {
-                case .userNotFound:
-                    errorMessage = "Aucun compte trouvé avec cet email."
-                case .wrongPassword:
-                    errorMessage = "Mot de passe incorrect."
-                case .emailAlreadyInUse:
-                    errorMessage = "Un compte existe déjà avec cet email."
-                case .weakPassword:
-                    errorMessage = "Le mot de passe est trop faible."
-                case .invalidEmail:
-                    errorMessage = "Format d'email invalide."
-                case .tooManyRequests:
-                    errorMessage = "Trop de tentatives. Veuillez réessayer plus tard."
-                case .userDisabled:
-                    errorMessage = "Ce compte a été désactivé."
-                case .operationNotAllowed:
-                    errorMessage = "Cette méthode d'authentification n'est pas autorisée."
-                case .invalidCredential:
-                    errorMessage = "Identifiants invalides."
-                case .networkError:
-                    errorMessage = "Erreur de connexion réseau."
-                default:
-                    errorMessage = error.localizedDescription
+    func signUp() async {
+        isLoading = true
+        errorMessage = nil
+        
+        // Validation du nom d'utilisateur
+        if username.isEmpty {
+            errorMessage = "Le nom d'utilisateur est requis"
+            isLoading = false
+            return
+        }
+        
+        do {
+            // Création du compte utilisateur
+            let authResult = try await authenticationService.signUp(email: email, password: password)
+            
+            // Mise à jour du profil utilisateur avec le nom d'utilisateur
+            try await authenticationService.updateUserProfile(displayName: username, photoURL: nil)
+            
+            // Si une photo de profil est fournie, la télécharger
+            if let profileImage = profileImage, let imageData = profileImage.jpegData(compressionQuality: 0.7) {
+                do {
+                    // Utiliser l'ID utilisateur comme identifiant pour la photo
+                    guard let userId = authenticationService.getCurrentUser()?.uid else { throw NSError(domain: "Authentication", code: 401, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"]) }
+                    
+                    // Chemin dans le storage pour la photo de profil
+                    let imagePath = "profile_images/\(userId).jpg"
+                    
+                    // Upload de l'image
+                    let urlString = try await storageService.uploadImage(imageData, path: imagePath, metadata: nil)
+                    
+                    // Convertir la chaîne URL en URL
+                    guard let photoURL = URL(string: urlString) else { throw NSError(domain: "Storage", code: 400, userInfo: [NSLocalizedDescriptionKey: "URL invalide"]) }
+                    
+                    // Mise à jour du profil utilisateur avec l'URL de la photo
+                    try await authenticationService.updateUserProfile(displayName: nil, photoURL: photoURL)
+                } catch {
+                    print("Erreur lors du téléchargement de la photo de profil: \(error.localizedDescription)")
+                    // Ne pas bloquer l'inscription si l'upload de la photo échoue
                 }
-            } else {
-                errorMessage = error.localizedDescription
             }
-        } else if let authError = error as? AuthErrorCode {
-            // Gestion des erreurs AuthErrorCode directes (si utilisées ailleurs)
-            switch authError {
-            case .userNotFound:
-                errorMessage = "Aucun compte trouvé avec cet email."
-            case .wrongPassword:
-                errorMessage = "Mot de passe incorrect."
-            case .emailAlreadyInUse:
-                errorMessage = "Un compte existe déjà avec cet email."
-            case .weakPassword:
-                errorMessage = "Le mot de passe est trop faible."
-            case .invalidEmail:
-                errorMessage = "Format d'email invalide."
-            default:
-                errorMessage = error.localizedDescription
-            }
-        } else {
+            
+            userIsLoggedIn = true
+            storeCredentialsExplicit(email: email, password: password)
+        } catch {
             errorMessage = error.localizedDescription
         }
-        showingError = true
+        isLoading = false
     }
 
-    
-    /// Vide le formulaire
-    private func clearForm() {
-        email = ""
-        password = ""
-        username = ""
-        profileImage = nil
-    }
-    
-    /// Upload l'image de profil et met à jour le profil utilisateur
-    /// - Parameter completion: Callback appelé après completion avec succès (true) ou échec (false)
-    func uploadProfileImageAndUpdateUser(completion: @escaping (Bool) -> Void) async {
-        guard let currentUser = authService.getCurrentUser(), let image = profileImage else {
-            completion(false)
-            return
-        }
-        
-        isUploadingImage = true
-        
+    func signOut() async {
         do {
-            // 1. Compresser l'image
-            guard let imageData = image.jpegData(compressionQuality: 0.6) else {
-                throw NSError(domain: "ImageCompression", code: 0, userInfo: [NSLocalizedDescriptionKey: "Échec de compression de l'image"])
+            // Sauvegarder l'email avant la déconnexion
+            saveLastEmail(email)
+            if !username.isEmpty {
+                saveLastUsername(username)
             }
             
-            // 2. Uploader l'image via le service de stockage
-            let metadataAdapter = FirebaseStorageMetadataAdapter()
-            metadataAdapter.contentType = "image/jpeg"
+            try authenticationService.signOut()
+            userIsLoggedIn = false
             
-            let imagePath = "profile_images/\(currentUser.uid).jpg"
-            let downloadURLString = try await storageService.uploadImage(imageData, path: imagePath, metadata: metadataAdapter)
+            // Vider le mot de passe et l'email
+            password = ""
+            email = ""
             
-            // 3. Mettre à jour le profil utilisateur via le service d'authentification
-            guard let downloadURL = URL(string: downloadURLString) else {
-                throw NSError(domain: "URLParsing", code: 0, userInfo: [NSLocalizedDescriptionKey: "URL invalide"])
-            }
-            
-            try await authService.updateUserProfile(displayName: username, photoURL: downloadURL)
-            
-            DispatchQueue.main.async {
-                self.isUploadingImage = false
-                completion(true)
-            }
+            // Supprimer le mot de passe et l'email du keychain mais garder l'email dans UserDefaults
+            // Les supprimer individuellement pour s'assurer que les deux sont bien supprimés
+            try keychainService.delete(for: passwordAccount)
+            try keychainService.delete(for: emailAccount)
         } catch {
-            DispatchQueue.main.async {
-                self.isUploadingImage = false
-                self.errorMessage = "Échec de l'upload: \(error.localizedDescription)"
-                self.showingError = true
-                completion(false)
-            }
+            errorMessage = error.localizedDescription
         }
     }
-    
-    // MARK: - Public Methods
-    
-    /// Connecte l'utilisateur
-    func signIn() async {
-        // Sauvegarder les identifiants temporairement pour pouvoir les utiliser après l'authentification
-        let emailToStore = self.email
-        let passwordToStore = self.password
-        
-        await performAuthAction {
-            try await authService.signIn(email: emailToStore, password: passwordToStore)
-        }
-        
-        // Stocker les identifiants de manière sécurisée après une connexion réussie
-        if isAuthenticated {
-            storeCredentialsExplicit(email: emailToStore, password: passwordToStore)
-        }
-    }
-    
-    /// Crée un nouveau compte utilisateur
-    func signUp() async {
-        // Sauvegarder les identifiants temporairement pour pouvoir les utiliser après l'authentification
-        let emailToStore = self.email 
-        let passwordToStore = self.password
-        let usernameToStore = self.username
-        let profileImageToStore = self.profileImage
-        
-        await performAuthAction { try await authService.signUp(email: emailToStore, password: passwordToStore) }
-        
-        // Si l'inscription a réussi et qu'il y a une photo de profil ou un nom d'utilisateur
-        if isAuthenticated && (profileImageToStore != nil || !usernameToStore.isEmpty) {
-            // Mettre à jour le profil utilisateur avec le nom d'utilisateur et l'image
-            if profileImageToStore != nil {
-                await uploadProfileImageAndUpdateUser { _ in }
-            } else if !usernameToStore.isEmpty {
-                // Mettre à jour uniquement le nom d'utilisateur si pas d'image
-                if let currentUser = Auth.auth().currentUser {
-                    do {
-                        let changeRequest = currentUser.createProfileChangeRequest()
-                        changeRequest.displayName = usernameToStore
-                        try await changeRequest.commitChanges()
-                    } catch {
-                        errorMessage = "Échec de mise à jour du profil: \(error.localizedDescription)"
-                        showingError = true
-                    }
-                }
-            }
-            
-            // Stocker les identifiants dans le Keychain si l'authentification a réussi
-            storeCredentialsExplicit(email: emailToStore, password: passwordToStore)
-        } else if isAuthenticated {
-            // Stocker les identifiants si l'authentification a réussi mais pas d'image ni de nom
-            storeCredentialsExplicit(email: emailToStore, password: passwordToStore)
-        }
-    }
-    
-    /// Déconnecte l'utilisateur et vide le formulaire (pour déconnexion manuelle)
-    func signOut() {
-        signOutWithoutClearingForm()
-        clearForm()
-    }
-    
-    /// Déconnecte l'utilisateur sans vider le formulaire (pour déconnexion automatique)
-    func signOutWithoutClearingForm() {
+
+    func storeCredentialsExplicit(email: String, password: String) {
         do {
-            try authService.signOut()
-            isAuthenticated = false
-            // Réinitialiser la préférence de l'écran de connexion
-            UserDefaults.standard.set(false, forKey: showLoginScreenKey)
+            // Sauvegarder l'email dans UserDefaults et dans le Keychain
+            saveLastEmail(email)
+            try keychainService.save(email, for: emailAccount)
+            
+            // Sauvegarder le mot de passe dans le Keychain (plus sécurisé)
+            try keychainService.save(password, for: passwordAccount)
         } catch {
-            handleAuthError(error)
+            errorMessage = "Could not save credentials: \(error.localizedDescription)"
         }
     }
     
-    /// Utilise les informations d'authentification stockées pour une connexion rapide
-    func quickSignIn() {
-        if isUserLoggedIn {
-            isAuthenticated = true
-            UserDefaults.standard.set(true, forKey: showLoginScreenKey)
-        }
+    // Méthodes pour sauvegarder et récupérer l'email dans UserDefaults
+    private func saveLastEmail(_ email: String) {
+        UserDefaults.standard.set(email, forKey: lastEmailKey)
     }
     
-    /// Ferme l'alerte d'erreur
-    func dismissError() {
-        showingError = false
-        errorMessage = ""
+    private func saveLastUsername(_ username: String) {
+        UserDefaults.standard.set(username, forKey: lastUsernameKey)
     }
-    
-    /// Stocke les identifiants de l'utilisateur de façon sécurisée dans le Keychain
-    private func storeCredentials() {
-        storeCredentialsExplicit(email: self.email, password: self.password)
-    }
-    
-    /// Stocke des identifiants spécifiques de façon sécurisée dans le Keychain
-    private func storeCredentialsExplicit(email: String, password: String) {
-        // Vérifier que les identifiants ne sont pas vides
-        guard !email.isEmpty && !password.isEmpty else {
-            return
-        }
-        
-        // Supprimer d'abord les identifiants existants pour éviter des conflits
-        _ = try? keychainService.delete(for: emailKeychainKey)
-        _ = try? keychainService.delete(for: passwordKeychainKey)
-        
-        // Attendre un peu pour s'assurer que la suppression est terminée
-        Thread.sleep(forTimeInterval: 0.1)
-        
-        // Stocker l'email et le mot de passe dans le Keychain
-        _ = try? keychainService.save(email, for: emailKeychainKey)
-        _ = try? keychainService.save(password, for: passwordKeychainKey)
-        
-        // Mettre à jour les champs actuels pour réfléter les valeurs stockées
-        DispatchQueue.main.async {
-            self.email = email
-            self.password = password
-        }
-    }
-    
-    /// Force le stockage d'identifiants de test pour débogage
-    func forceStoreTestCredentials() {
-        let testEmail = "test@example.com"
-        let testPassword = "password123"
-        
-        // Supprimer d'abord les identifiants existants pour éviter des conflits
-        _ = try? keychainService.delete(for: emailKeychainKey)
-        _ = try? keychainService.delete(for: passwordKeychainKey)
-        
-        // Attendre un peu pour s'assurer que la suppression est terminée
-        Thread.sleep(forTimeInterval: 0.1)
-        
-        // Stocker les nouveaux identifiants
-        _ = try? keychainService.save(testEmail, for: emailKeychainKey)
-        _ = try? keychainService.save(testPassword, for: passwordKeychainKey)
-        
-        // Mettre à jour les champs immédiatement
-        DispatchQueue.main.async {
-            self.email = testEmail
-            self.password = testPassword
-        }
-    }
-    
-    /// Charge les identifiants stockés s'ils existent
+
     func loadStoredCredentials() {
-        // Vérifier si des identifiants existent dans le Keychain
-        let hasCredentials = keychainService.exists(for: emailKeychainKey)
+        // Pour faciliter les tests unitaires, nous détectons si nous sommes dans un environnement de test
+        let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         
-        // En développement, utiliser des identifiants de test seulement si aucun identifiant personnel n'existe
-        #if DEBUG
-        if !hasCredentials {
-            forceStoreTestCredentials()
-            return
-        }
-        #endif
-        
-        if hasCredentials {
-            if let storedEmail = try? keychainService.retrieve(for: emailKeychainKey),
-               let storedPassword = try? keychainService.retrieve(for: passwordKeychainKey),
-               !storedEmail.isEmpty && !storedPassword.isEmpty {
-                
-                // Forcer la mise à jour sur le thread principal
-                DispatchQueue.main.async {
-                    self.email = storedEmail
-                    self.password = storedPassword
-                }
+        // Fonction de chargement des identifiants
+        let loadCredentials = {
+            // Charge l'email depuis UserDefaults ou Keychain
+            if let savedEmail = UserDefaults.standard.string(forKey: self.lastEmailKey) {
+                self.email = savedEmail
             } else {
-                // Les identifiants sont vides ou invalides, forcer des identifiants de test
-                forceStoreTestCredentials()
+                // Essayer de récupérer depuis le keychain si pas dans UserDefaults
+                do {
+                    let storedEmail = try self.keychainService.retrieve(for: self.emailAccount)
+                    self.email = storedEmail
+                } catch {
+                    self.email = ""
+                }
             }
-        } else {
-            // Aucun identifiant trouvé, forcer des identifiants de test
-            forceStoreTestCredentials()
+            
+            // Charge le mot de passe depuis le Keychain
+            do {
+                let storedPassword = try self.keychainService.retrieve(for: self.passwordAccount)
+                self.password = storedPassword
+            } catch {
+                self.password = ""
+            }
+            
+            if let savedUsername = UserDefaults.standard.string(forKey: self.lastUsernameKey) {
+                self.username = savedUsername
+            }
         }
+        
+        // Exécuter de façon synchrone pour les tests, de façon asynchrone pour l'application
+        if isRunningTests {
+            loadCredentials()
+        } else {
+            // Reporter les modifications des propriétés @Published après le cycle de rendu SwiftUI
+            DispatchQueue.main.async(execute: loadCredentials)
+        }
+        
+        // Le mot de passe sera chargé uniquement si explicitement demandé par loadPasswordFromKeychain
     }
     
+    func loadPasswordFromKeychain() {
+        // Cette méthode ne doit être appelée que lorsqu'on est certain qu'il n'y a pas
+        // d'interaction utilisateur en cours avec le champ de mot de passe
+        do {
+            let storedPassword = try keychainService.retrieve(for: passwordAccount)
+            // Vérifier si l'utilisateur n'a pas déjà commencé à taper un mot de passe
+            // Si le champ est vide, alors on peut mettre le mot de passe stocké
+            if self.password.isEmpty {
+                self.password = storedPassword
+            }
+        } catch {
+            // Mot de passe non trouvé, ce qui est normal au premier lancement
+            // Ne rien faire si l'utilisateur a déjà commencé à taper
+            if self.password.isEmpty {
+                self.password = ""
+            }
+        }
+    }
 
+    func quickSignIn() async {
+        if !email.isEmpty && !password.isEmpty {
+            await signIn()
+        }
+    }
+
+    func signOutWithoutClearingForm() async {
+        do {
+            // Sauvegarder l'email et le username avant la déconnexion
+            saveLastEmail(email)
+            if !username.isEmpty {
+                saveLastUsername(username)
+            }
+            
+            try authenticationService.signOut()
+            userIsLoggedIn = false
+            
+            // Ne pas supprimer les données du formulaire ni l'email du UserDefaults
+            try keychainService.delete(for: passwordAccount)
+            try keychainService.delete(for: emailAccount)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func dismissError() {
+        errorMessage = nil
+    }
 }

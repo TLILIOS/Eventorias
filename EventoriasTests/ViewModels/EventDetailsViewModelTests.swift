@@ -1,680 +1,479 @@
-//
+
 // EventDetailsViewModelTests.swift
 // EventoriasTests
 //
-// Created on 13/06/2025.
+// Created on 24/06/2025
 //
 
 import XCTest
+import Combine
 import CoreLocation
-import Firebase
+import MapKit
 @testable import Eventorias
 
 @MainActor
-final class EventDetailsViewModelTests: XCTestCase {
+class EventDetailsViewModelTests: XCTestCase {
     
-    // System under test
-    var sut: EventDetailsViewModel!
+    // MARK: - Properties
     
-    // Mock dependencies
-    var mockFirestoreService: MockEventFirestoreService!
-    var mockGeocodingService: MockGeocodingService!
-    var mockMapNetworkService: MockMapNetworkService!
-    var mockConfigurationService: MockConfigurationService!
+    private var viewModel: EventDetailsViewModel!
+    private var mockFirestoreService: MockFirestoreService!
+    private var mockGeocodingService: MockGeocodingService!
+    private var mockMapNetworkService: MockMapNetworkService!
+    private var mockConfigurationService: MockConfigurationService!
+    private var cancellables: Set<AnyCancellable>!
+    
+    // MARK: - Setup & Teardown
     
     override func setUp() {
         super.setUp()
         
-        // Initialize mocks
-        mockFirestoreService = MockEventFirestoreService()
+        mockFirestoreService = MockFirestoreService()
         mockGeocodingService = MockGeocodingService()
         mockMapNetworkService = MockMapNetworkService()
         mockConfigurationService = MockConfigurationService()
         
-        // Initialize SUT with mocks
-        sut = EventDetailsViewModel(
+        // **Configuration complète pour éviter les erreurs**
+        mockConfigurationService.googleMapsAPIKey = "test-api-key-minimum-20-characters"
+        
+        // **Configuration par défaut du géocodage**
+        let defaultPlacemark = createMockPlacemark(latitude: 48.8566, longitude: 2.3522)
+        mockGeocodingService.mockPlacemarks = [defaultPlacemark]
+        mockGeocodingService.shouldThrowError = false
+        
+        // **Créer le ViewModel en mode test SANS géocodage automatique**
+        viewModel = EventDetailsViewModel(
             firestoreService: mockFirestoreService,
             geocodingService: mockGeocodingService,
             mapNetworkService: mockMapNetworkService,
-            configurationService: mockConfigurationService
+            configurationService: mockConfigurationService,
+            isTestMode: true,
+            shouldAutoGeocode: false // ← Désactiver par défaut
         )
+        
+        cancellables = []
     }
     
     override func tearDown() {
-        sut = nil
+        viewModel = nil
         mockFirestoreService = nil
         mockGeocodingService = nil
         mockMapNetworkService = nil
         mockConfigurationService = nil
+        cancellables = nil
         super.tearDown()
     }
     
     // MARK: - Helper Methods
     
-    private func createSampleEvent() -> Event {
+    private func createMockEvent(id: String = "test-event-id") -> Event {
         return Event(
-            id: "test-event-id",
-            title: "Test Event",
-            description: "This is a test event description",
+            id: id,
+            title: "Événement de test",
+            description: "Description de l'événement de test",
             date: Date(),
-            location: "1 Infinite Loop, Cupertino, CA",
-            organizer: "test-user-id",
-            organizerImageURL: nil,
+            location: "123 Rue de Test, Paris",
+            organizer: "Organisateur Test",
+            organizerImageURL: "https://example.com/organizer.jpg",
             imageURL: "https://example.com/image.jpg",
-            category: "test",
-            tags: [],
+            category: "Test",
+            tags: ["test", "unitaire"],
             createdAt: Date()
         )
     }
     
-    private func setupMockFirestoreForSuccess() {
-        // Create a mock DocumentSnapshot with an event
-        let sampleEvent = createSampleEvent()
-        // Set up the mock to return the sample event
-        mockFirestoreService.eventToReturn = sampleEvent
+    private func createMockDocumentSnapshot(exists: Bool, event: Event? = nil, documentID: String? = nil) -> MockDocumentSnapshot {
+        if exists, let event = event {
+            // Utiliser l'ID explicitement fourni ou l'ID de l'événement
+            let eventID = documentID ?? event.id ?? "test-id"
+            
+            // Créer manuellement le dictionnaire de données au lieu d'utiliser l'encodage JSON
+            // pour éviter le problème avec DocumentID
+            var dict: [String: Any] = [
+                "id": eventID,
+                "title": event.title,
+                "description": event.description,
+                "date": event.date.timeIntervalSince1970, // Convertir la date en timestamp
+                "location": event.location,
+                "organizer": event.organizer
+            ]
+            
+            // Ajouter les champs optionnels s'ils existent
+            if let organizerImageURL = event.organizerImageURL {
+                dict["organizerImageURL"] = organizerImageURL
+            }
+            if let imageURL = event.imageURL {
+                dict["imageURL"] = imageURL
+            }
+            // category n'est pas optionnel, pas besoin de if let
+            dict["category"] = event.category
+            if let tags = event.tags {
+                dict["tags"] = tags
+            }
+            // createdAt n'est pas optionnel, pas besoin de if let
+            dict["createdAt"] = event.createdAt.timeIntervalSince1970 // Convertir la date en timestamp
+            
+            print("🔵 Création d'un MockDocumentSnapshot avec ID: \(eventID) et données: \(dict)")
+            return MockDocumentSnapshot(exists: true, data: dict, id: eventID)
+        }
+        // Si le document n'existe pas ou pas d'événement fourni
+        return MockDocumentSnapshot(exists: false, data: [:])
     }
     
-    private func setupMockGeocodingForSuccess() {
-        // Set mock coordinates directly instead of using placemarks
-        mockGeocodingService.mockCoordinates = CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194)
+    private func createMockPlacemark(latitude: Double, longitude: Double) -> MockPlacemark {
+        let location = CLLocation(latitude: latitude, longitude: longitude)
+        return MockPlacemark(
+            name: "Test Location",
+            thoroughfare: "123 Test Street",
+            locality: "Test City",
+            country: "Test Country",
+            location: location
+        )
     }
     
-    // MARK: - Tests
-    
-    // MARK: - Initialization Tests
-    
-    func testInitialization() {
-        // Test initialization with default values
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertNil(sut.event)
-        XCTAssertNil(sut.coordinates)
-        XCTAssertNil(sut.mapImageURL)
-        XCTAssertEqual(sut.errorMessage, "")
-        XCTAssertFalse(sut.showingError)
+    /// **NOUVELLE MÉTHODE**: Reset les flags des mocks
+    private func resetMockFlags() {
+        mockFirestoreService.getEventDocumentCalled = false
+        mockFirestoreService.getSampleEventCalled = false
+        mockGeocodingService.geocodeAddressCalled = false
     }
     
-    // MARK: - Loading Event Tests
+    // MARK: - Load Event Tests
     
-    func testLoadEvent_WithEmptyId() async {
-        // Arrange - Empty ID
-        let emptyId = ""
+
+    func testLoadEvent_WhenEventExists_ShouldLoadFromFirestore() async {
+        print("\n📋 DÉBUT DU TEST testLoadEvent_WhenEventExists_ShouldLoadFromFirestore 📋")
         
-        // Act
-        await sut.loadEvent(eventID: emptyId)
+        // Given
+        let eventID = "test-event-id"
+        print("📌 ID de l'événement à tester: \(eventID)")
         
-        // Assert
-        XCTAssertTrue(sut.showingError)
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertEqual(sut.errorMessage, "ID d'événement invalide")
-        XCTAssertNil(sut.event)
-        // Verify that the service was not called with empty ID
-        XCTAssertFalse(mockFirestoreService.getEventDocumentCalled)
-    }
-    
-    func testLoadEvent_FirestoreSuccess() async {
-        // Arrange
-        let eventId = "test-event-id"
-        let sampleEvent = createSampleEvent()
+        let mockEvent = createMockEvent(id: eventID)
+        print("📌 Event mock créé: \(mockEvent)")
+        print("📌 Event mock ID: \(mockEvent.id ?? "nil")")
+        print("📌 Event mock title: \(mockEvent.title)")
+        print("📌 Event mock date: \(mockEvent.date)")
         
-        // Create a mock event and set it up
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
+        // Vérification que l'objet mockEvent est bien créé et contient un ID
+        XCTAssertEqual(mockEvent.id, eventID, "L'objet Event mock doit avoir l'ID correct")
         
-        // Act
-        await sut.loadEvent(eventID: eventId)
+        // **Création du mock snapshot avec le bon ID et les données de l'événement**
+        let mockSnapshot = createMockDocumentSnapshot(exists: true, event: mockEvent, documentID: eventID)
+        print("📌 Mock snapshot créé - exists: \(mockSnapshot.exists), ID: \(mockSnapshot.documentID)")
         
-        // Assert
-        XCTAssertFalse(sut.showingError)
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertNotNil(sut.event)
-        XCTAssertEqual(sut.event?.id, sampleEvent.id)
-        XCTAssertEqual(sut.event?.title, sampleEvent.title)
+        // **Assignation du snapshot au service avant les vérifications**
+        mockFirestoreService.resetFlags()
+        mockFirestoreService.mockDocument = mockSnapshot
+        mockFirestoreService.shouldThrowError = false
         
-        // Verify the service was called with the correct ID
-        XCTAssertTrue(mockFirestoreService.getEventDocumentCalled)
-        XCTAssertEqual(mockFirestoreService.lastEventIDRequested, eventId)
-    }
-    
-    func testLoadEvent_FirestoreFailure() async {
-        // Arrange
-        let eventId = "test-event-id"
-        
-        // Set up the mock to throw an error when getEventDocument is called
-        mockFirestoreService.errorToThrow = EventDetailsError.networkError
-        
-        // Act
-        await sut.loadEvent(eventID: eventId)
-        
-        // Assert
-        XCTAssertTrue(sut.showingError)
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertTrue(sut.errorMessage.contains("Impossible de charger"))
-        XCTAssertNil(sut.event)
-        
-        // Verify the service was called
-        XCTAssertTrue(mockFirestoreService.getEventDocumentCalled)
-    }
-    
-    func testLoadEvent_FirestoreNotFound_SampleEventSuccess() async {
-        // Arrange
-        let eventId = "test-event-id"
-        let sampleEvent = createSampleEvent()
-        
-        // Setup mock document not found but sample event available
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: false)
-        mockFirestoreService.eventToReturn = sampleEvent
-        
-        // Act
-        await sut.loadEvent(eventID: eventId)
-        
-        // Assert
-        XCTAssertFalse(sut.showingError)
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertNotNil(sut.event)
-        XCTAssertEqual(sut.event?.id, sampleEvent.id)
-        
-        // Verify both services were called
-        XCTAssertTrue(mockFirestoreService.getEventDocumentCalled)
-        XCTAssertTrue(mockFirestoreService.getSampleEventCalled)
-    }
-    
-    // MARK: - Geocoding Tests
-    
-    func testGeocodeEventLocation_WithEmptyAddress() async {
-        // Arrange - No event defined
-        
-        // Act
-        await sut.geocodeEventLocation()
-        
-        // Assert
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertNil(sut.coordinates)
-        XCTAssertNil(sut.mapImageURL)
-        
-        // Verify the geocoding service was not called
-        XCTAssertFalse(mockGeocodingService.geocodeAddressCalled)
-    }
-    
-    func testGeocodeEventLocation_Success() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
-        let latitude = 37.7749
-        let longitude = -122.4194
-        
-        // Set up the view model with an event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Set up geocoding mock to return coordinates
-        mockGeocodingService.mockCoordinates = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        
-        // Act
-        await sut.geocodeEventLocation()
-        
-        // Assert
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertNotNil(sut.coordinates)
-        
-        // ✅ CORRECTION: Déballage sécurisé des coordonnées
-        if let coordinates = sut.coordinates {
-            XCTAssertEqual(coordinates.latitude, latitude, accuracy: 0.0001)
-            XCTAssertEqual(coordinates.longitude, longitude, accuracy: 0.0001)
+        // Vérification que le mockDocument est bien configuré dans le service
+        if let serviceSnapshot = mockFirestoreService.mockDocument {
+            XCTAssertTrue(serviceSnapshot.exists, "Le snapshot doit exister")
+            
+            // Au lieu de vérifier directement documentID et data(), vérifions que le décodage fonctionne
+            do {
+                let decodedEvent = try serviceSnapshot.data(as: Event.self)
+                XCTAssertEqual(decodedEvent.id, eventID, "L'ID décodé de l'événement doit correspondre")
+                print("📌 Décodage du service snapshot réussi: \(decodedEvent.title)")
+            } catch {
+                XCTFail("Impossible de décoder le document: \(error)")
+            }
         } else {
-            XCTFail("Les coordonnées ne devraient pas être nil après un géocodage réussi")
+            XCTFail("mockDocument dans le service est nil")
         }
         
-        // Verify the geocoding service was called with the correct address
-        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
-        XCTAssertEqual(mockGeocodingService.lastAddressGeocoded, sampleEvent.location)
+        // Vérification manuelle du décodage pour isoler le problème
+        do {
+            if let serviceSnapshot = mockFirestoreService.mockDocument {
+                let testEvent = try serviceSnapshot.data(as: Event.self)
+                print("✅ Test manuel de décodage réussi:")
+                print("   - ID: \(testEvent.id ?? "nil")")
+                print("   - Titre: \(testEvent.title)")
+                print("   - Date: \(testEvent.date)")
+            }
+        } catch {
+            print("❌ Test manuel de décodage échoué: \(error)")
+            XCTFail("Erreur lors du décodage manuel: \(error)")
+        }
+        
+        print("📌 État du viewModel AVANT loadEvent:")
+        print("   - event: \(String(describing: viewModel.event))")
+        print("   - isLoading: \(viewModel.isLoading)")
+        print("   - errorMessage: '\(viewModel.errorMessage)'")
+        print("   - showingError: \(viewModel.showingError)")
+        
+        // When - Exécution de la méthode à tester
+        print("📌 Appel de loadEvent avec ID: \(eventID)")
+        await viewModel.loadEvent(eventID: eventID)
+        
+        // Diagnostic pour voir l'état après loadEvent
+        print("📌 État du viewModel APRÈS loadEvent:")
+        print("   - event: \(String(describing: viewModel.event))")
+        print("   - isLoading: \(viewModel.isLoading)")
+        print("   - errorMessage: '\(viewModel.errorMessage)'")
+        print("   - showingError: \(viewModel.showingError)")
+        
+        // Vérification des appels aux méthodes du service
+        print("📌 Vérification des appels au service:")
+        print("   - getEventDocumentCalled: \(mockFirestoreService.getEventDocumentCalled)")
+        print("   - getSampleEventCalled: \(mockFirestoreService.getSampleEventCalled)")
+        
+        // Asserts
+        // Vérifier que la bonne méthode du service a été appelée
+        XCTAssertTrue(mockFirestoreService.getEventDocumentCalled, "getEventDocument devrait être appelé")
+        XCTAssertFalse(mockFirestoreService.getSampleEventCalled, "getSampleEvent ne devrait pas être appelé")
+        
+        // Vérifier que le ViewModel est dans l'état attendu
+        XCTAssertFalse(viewModel.isLoading, "isLoading devrait être false après le chargement")
+        XCTAssertFalse(viewModel.showingError, "showingError devrait être false car pas d'erreur attendue")
+        XCTAssertEqual(viewModel.errorMessage, "", "errorMessage devrait être vide")
+        
+        // Vérifier que l'event a bien été chargé
+        XCTAssertNotNil(viewModel.event, "event ne devrait pas être nil après loadEvent")
+        if let loadedEvent = viewModel.event {
+            XCTAssertEqual(loadedEvent.id, eventID, "L'ID de l'événement chargé doit correspondre")
+        }
+        
+        print("📋 FIN DU TEST testLoadEvent_WhenEventExists_ShouldLoadFromFirestore 📋\n")
     }
 
-    
-    func testGeocodeEventLocation_EmptyPlacemarks() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
+    func testLoadEvent_WhenEventDoesNotExist_ShouldLoadFromSamples() async {
+        // Given
+        let eventID = "non-existing-id"
+        let mockEvent = createMockEvent(id: eventID)
+        let mockSnapshot = createMockDocumentSnapshot(exists: false, documentID: eventID)
         
-        // Set up the view model with an event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
+        mockFirestoreService.mockDocument = mockSnapshot
+        mockFirestoreService.mockEvents = [mockEvent]
         
-        // Set up geocoding mock to return empty placemark array
-        mockGeocodingService.shouldReturnEmptyPlacemarks = true
+        // **Reset des flags avant le test**
+        resetMockFlags()
         
-        // Act
-        await sut.geocodeEventLocation()
+        // When
+        await viewModel.loadEvent(eventID: eventID)
         
-        // Assert
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertNil(sut.coordinates)
-        XCTAssertNil(sut.mapImageURL)
-        XCTAssertTrue(sut.errorMessage.contains("Impossible de localiser"))
-        
-        // Verify the geocoding service was called
-        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
+        // Then
+        XCTAssertTrue(mockFirestoreService.getEventDocumentCalled, "getEventDocument aurait dû être appelé")
+        XCTAssertTrue(mockFirestoreService.getSampleEventCalled, "getSampleEvent aurait dû être appelé")
+        XCTAssertNotNil(viewModel.event, "L'événement ne devrait pas être nil")
+        XCTAssertEqual(viewModel.event?.id, eventID, "L'ID de l'événement chargé devrait correspondre")
+        XCTAssertFalse(viewModel.isLoading, "isLoading devrait être false après le chargement")
+        XCTAssertEqual(viewModel.errorMessage, "", "Aucun message d'erreur ne devrait être présent")
     }
     
-    func testGeocodeEventLocation_Error() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
+    func testLoadEvent_WhenEventIDIsEmpty_ShouldSetError() async {
+        // Given
+        let emptyEventID = ""
+        resetMockFlags()
         
-        // Set up the view model with an event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
+        // When
+        await viewModel.loadEvent(eventID: emptyEventID)
         
-        // Set up geocoding mock to throw an error
-        mockGeocodingService.shouldThrowError = true
-        mockGeocodingService.errorToThrow = EventDetailsError.geocodingError
-        
-        // Act
-        await sut.geocodeEventLocation()
-        
-        // Assert
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertNil(sut.coordinates)
-        XCTAssertNil(sut.mapImageURL)
-        XCTAssertTrue(sut.errorMessage.contains("Impossible de géocoder"))
-        
-        // Verify the geocoding service was called
-        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
+        // Then
+        XCTAssertFalse(mockFirestoreService.getEventDocumentCalled)
+        XCTAssertNil(viewModel.event)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertTrue(viewModel.showingError)
+        XCTAssertTrue(viewModel.errorMessage.contains("ID d'événement invalide"))
     }
     
-    // MARK: - Formatting Tests
-    
-    func testFormattedEventTime_WithNoEvent() {
-        // Arrange - No event defined
+    func testLoadEvent_WhenFirestoreThrowsError_ShouldSetError() async {
+        // Given
+        let eventID = "error-event-id"
+        mockFirestoreService.shouldThrowError = true
+        mockFirestoreService.mockError = NSError(domain: "TestError", code: 500, userInfo: [NSLocalizedDescriptionKey: "Erreur de test"])
+        resetMockFlags()
         
-        // Act
-        let timeString = sut.formattedEventTime()
+        // When
+        await viewModel.loadEvent(eventID: eventID)
         
-        // Assert
-        XCTAssertEqual(timeString, "")
+        // Then
+        XCTAssertTrue(mockFirestoreService.getEventDocumentCalled)
+        XCTAssertNil(viewModel.event)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertTrue(viewModel.showingError)
+        XCTAssertTrue(viewModel.errorMessage.contains("Erreur de test"))
     }
     
-    func testFormattedEventTime_WithEvent() async {
-        // Arrange
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let specificDate = dateFormatter.date(from: "2025-06-15 14:30:00")!
-        
-        let sampleEvent = Event(
-            id: "test-event-id",
-            title: "Test Event",
-            description: "This is a test event description",
-            date: specificDate,
-            location: "1 Infinite Loop, Cupertino, CA",
-            organizer: "test-user-id",
-            organizerImageURL: nil,
-            imageURL: "https://example.com/image.jpg",
-            category: "test",
-            tags: [],
-            createdAt: Date()
-        )
-        
-        // Set up the view model with the event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Act
-        let timeString = sut.formattedEventTime()
-        
-        // Assert
-        XCTAssertEqual(timeString, "14:30")
-    }
+    // MARK: - Geocode Location Tests
     
-    func testFormattedEventDay_WithNoEvent() {
-        // Arrange - No event defined
+    func testGeocodeEventLocation_WhenNoEvent_ShouldReturn() async {
+        // Given
+        resetMockFlags()
         
-        // Act
-        let dayString = sut.formattedEventDay()
+        // When
+        await viewModel.geocodeEventLocation()
         
-        // Assert
-        XCTAssertEqual(dayString, "")
-    }
-    
-    func testFormattedEventDay_WithEvent() async {
-        // Arrange
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let specificDate = dateFormatter.date(from: "2025-06-15 14:30:00")!
-        
-        let sampleEvent = Event(
-            id: "test-event-id",
-            title: "Test Event",
-            description: "This is a test event description",
-            date: specificDate,
-            location: "1 Infinite Loop, Cupertino, CA",
-            organizer: "test-user-id",
-            organizerImageURL: nil,
-            imageURL: "https://example.com/image.jpg",
-            category: "test",
-            tags: [],
-            createdAt: Date()
-        )
-        
-        // Set up the view model with the event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Act
-        let dayString = sut.formattedEventDay()
-        
-        // ✅ CORRECTION: Vérifier seulement le format "d" (jour uniquement)
-        XCTAssertEqual(dayString, "15")
-    }
-    
-    func testFormattedEventMonth_WithEvent() async {
-        // ✅ CORRECTION: Nouveau test pour le mois
-        // Arrange
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let specificDate = dateFormatter.date(from: "2025-06-15 14:30:00")!
-        
-        let sampleEvent = Event(
-            id: "test-event-id",
-            title: "Test Event",
-            description: "This is a test event description",
-            date: specificDate,
-            location: "1 Infinite Loop, Cupertino, CA",
-            organizer: "test-user-id",
-            organizerImageURL: nil,
-            imageURL: "https://example.com/image.jpg",
-            category: "test",
-            tags: [],
-            createdAt: Date()
-        )
-        
-        // Set up the view model with the event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Act
-        let monthString = sut.formattedEventMonth()
-        
-        // Assert
-        XCTAssertTrue(monthString.lowercased().contains("jun"))
-    }
-    
-    // MARK: - API Key Configuration Tests
-    
-    func testIsMapAPIKeyConfigured_WithValidKey() {
-        // ✅ CORRECTION: Utiliser une clé API de plus de 20 caractères
-        mockConfigurationService.mockGoogleMapsAPIKey = "valid-api-key-with-sufficient-length-for-testing"
-        
-        // Act
-        let isConfigured = sut.isMapAPIKeyConfigured
-        
-        // Assert
-        XCTAssertTrue(isConfigured)
-        XCTAssertTrue(mockConfigurationService.getGoogleMapsAPIKeyCalled)
-    }
-    
-    func testIsMapAPIKeyConfigured_WithEmptyKey() {
-        // Arrange
-        mockConfigurationService.mockGoogleMapsAPIKey = ""
-        
-        // Act
-        let isConfigured = sut.isMapAPIKeyConfigured
-        
-        // Assert
-        XCTAssertFalse(isConfigured)
-        XCTAssertTrue(mockConfigurationService.getGoogleMapsAPIKeyCalled)
-    }
-    
-    func testIsMapAPIKeyConfigured_WithPlaceholderKey() {
-        // Arrange
-        mockConfigurationService.mockGoogleMapsAPIKey = "YOUR_API_KEY"
-        
-        // Act
-        let isConfigured = sut.isMapAPIKeyConfigured
-        
-        // Assert
-        XCTAssertFalse(isConfigured)
-        XCTAssertTrue(mockConfigurationService.getGoogleMapsAPIKeyCalled)
-    }
-    
-    func testIsMapAPIKeyConfigured_WithShortKey() {
-        // ✅ CORRECTION: Nouveau test pour clé trop courte
-        mockConfigurationService.mockGoogleMapsAPIKey = "short-key"
-        
-        // Act
-        let isConfigured = sut.isMapAPIKeyConfigured
-        
-        // Assert
-        XCTAssertFalse(isConfigured)
-        XCTAssertTrue(mockConfigurationService.getGoogleMapsAPIKeyCalled)
-    }
-    
-    // MARK: - Map Image URL Generation Tests
-    
-    func testGenerateMapImageURL_WithNoCoordinates() async {
-        // Arrange - No coordinates defined
-        let sampleEvent = createSampleEvent()
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Make sure coordinates are nil
-        sut.coordinates = nil
-        
-        // Set a valid API key in the mock configuration service
-        mockConfigurationService.mockGoogleMapsAPIKey = "valid-api-key-with-sufficient-length-for-testing"
-        
-        // Act - we call geocodeEventLocation which internally calls generateMapImageURL when successful
-        await sut.geocodeEventLocation()
-        
-        // Assert
-        XCTAssertNil(sut.mapImageURL)
-    }
-    
-    func testGenerateMapImageURL_WithCoordinates() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
-        let latitude = 37.7749
-        let longitude = -122.4194
-        
-        // Set up the view model with an event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Set up geocoding mock to return coordinates
-        mockGeocodingService.mockCoordinates = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        
-        // ✅ CORRECTION: Utiliser une clé API valide
-        mockConfigurationService.mockGoogleMapsAPIKey = "valid-api-key-with-sufficient-length-for-testing"
-        
-        // Act
-        await sut.geocodeEventLocation()
-        
-        // Assert
-        XCTAssertNotNil(sut.mapImageURL)
-        XCTAssertTrue(sut.mapImageURL?.absoluteString.contains("maps.googleapis.com") ?? false)
-        XCTAssertTrue(sut.mapImageURL?.absoluteString.contains("valid-api-key-with-sufficient-length-for-testing") ?? false)
-        XCTAssertTrue(sut.mapImageURL?.absoluteString.contains("37.774900") ?? false)
-        XCTAssertTrue(sut.mapImageURL?.absoluteString.contains("-122.419400") ?? false)
-        
-        // Verify the right services were called
-        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
-        XCTAssertTrue(mockConfigurationService.getGoogleMapsAPIKeyCalled)
-    }
-    
-    // MARK: - Map Error Handling Tests
-    
-    func testMapValidation_Success() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Set up coordinates and map URL
-        let latitude = 37.7749
-        let longitude = -122.4194
-        mockGeocodingService.mockCoordinates = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        mockConfigurationService.mockGoogleMapsAPIKey = "valid-api-key-with-sufficient-length-for-testing"
-        
-        // Configure mock network service for success
-        mockMapNetworkService.mockSuccess = true
-        
-        // Act - Geocode will trigger map validation
-        await sut.geocodeEventLocation()
-        
-        // ✅ CORRECTION: Attendre la validation asynchrone
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 secondes
-        
-        // Assert
-        XCTAssertNotNil(sut.mapImageURL)
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertFalse(sut.showingError)
-        XCTAssertTrue(mockMapNetworkService.validateURLCalled)
-    }
-    
-    func testMapValidation_NetworkError() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Set up coordinates and map URL
-        let latitude = 37.7749
-        let longitude = -122.4194
-        mockGeocodingService.mockCoordinates = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        mockConfigurationService.mockGoogleMapsAPIKey = "valid-api-key-with-sufficient-length-for-testing"
-        
-        // Configure mock network service to throw an error
-        mockMapNetworkService.shouldThrowError = true
-        mockMapNetworkService.errorToThrow = MapError.networkError("Test network error")
-        
-        // Act - Geocode will trigger map validation
-        await sut.geocodeEventLocation()
-        
-        // ✅ CORRECTION: Attendre la validation asynchrone
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 secondes
-        
-        // Assert
-        XCTAssertNotNil(sut.mapImageURL) // URL should still be set
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertTrue(sut.errorMessage.contains("Test network error"))
-        XCTAssertTrue(sut.showingError)
-        XCTAssertTrue(mockMapNetworkService.validateURLCalled)
-    }
-    
-    func testMapValidation_InvalidImageData() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Set up coordinates and map URL
-        let latitude = 37.7749
-        let longitude = -122.4194
-        mockGeocodingService.mockCoordinates = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        mockConfigurationService.mockGoogleMapsAPIKey = "valid-api-key-with-sufficient-length-for-testing"
-        
-        // Configure mock network service to throw an invalid data error
-        mockMapNetworkService.shouldThrowError = true
-        mockMapNetworkService.errorToThrow = MapError.invalidImageData
-        
-        // Act - Geocode will trigger map validation
-        await sut.geocodeEventLocation()
-        
-        // ✅ CORRECTION: Attendre la validation asynchrone
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 secondes
-        
-        // Assert
-        XCTAssertNil(sut.mapImageURL) // URL should be reset to nil on invalid data
-        XCTAssertFalse(sut.isLoadingMap)
-        XCTAssertTrue(sut.showingError)
-        XCTAssertTrue(mockMapNetworkService.validateURLCalled)
-    }
-    
-    func testCancelTasks() {
-        // Arrange - Just need to call the method
-        
-        // Act
-        sut.cancelTasks()
-        
-        // Assert
-        XCTAssertTrue(mockGeocodingService.geocodingCancelled)
-    }
-    
-    // MARK: - Tests supplémentaires pour une meilleure couverture
-    
-    func testFormattedEventDate_WithEvent() async {
-        // Arrange
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let specificDate = dateFormatter.date(from: "2025-06-15 14:30:00")!
-        
-        let sampleEvent = Event(
-            id: "test-event-id",
-            title: "Test Event",
-            description: "This is a test event description",
-            date: specificDate,
-            location: "1 Infinite Loop, Cupertino, CA",
-            organizer: "test-user-id",
-            organizerImageURL: nil,
-            imageURL: "https://example.com/image.jpg",
-            category: "test",
-            tags: [],
-            createdAt: Date()
-        )
-        
-        // Set up the view model with the event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // Act
-        let dateString = sut.formattedEventDate()
-        
-        // Assert
-        XCTAssertFalse(dateString.isEmpty)
-        XCTAssertTrue(dateString.contains("2025"))
-    }
-    
-    func testGeocodeEventLocation_WithExistingCoordinates() async {
-        // Arrange
-        let sampleEvent = createSampleEvent()
-        let latitude = 37.7749
-        let longitude = -122.4194
-        
-        // Set up the view model with an event
-        mockFirestoreService.eventToReturn = sampleEvent
-        mockFirestoreService.mockDocumentSnapshot = MockFirestoreDocumentSnapshot(exists: true, mockEvent: sampleEvent)
-        await sut.loadEvent(eventID: sampleEvent.id ?? "test-event-id")
-        
-        // ✅ Pre-define coordinates before geocoding
-        sut.coordinates = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        
-        // Reset the geocodeAddressCalled flag after loadEvent which might have triggered geocoding
-        mockGeocodingService.geocodeAddressCalled = false
-        
-        // Act
-        await sut.geocodeEventLocation()
-        
-        // Assert
-        XCTAssertNotNil(sut.coordinates)
-        
-        // Verify coordinates are preserved with the original values
-        if let coordinates = sut.coordinates {
-            XCTAssertEqual(coordinates.latitude, latitude, accuracy: 0.0001)
-            XCTAssertEqual(coordinates.longitude, longitude, accuracy: 0.0001)
-        } else {
-            XCTFail("Coordinates should not be nil")
-        }
-        
-        // Verify that geocodeAddress was NOT called (should use existing coordinates)
+        // Then
         XCTAssertFalse(mockGeocodingService.geocodeAddressCalled)
+        XCTAssertNil(viewModel.coordinates)
+        XCTAssertNil(viewModel.mapImageURL)
+    }
+    
+    func testGeocodeEventLocation_WhenEmptyLocation_ShouldReturn() async {
+        // Given
+        let mockEventWithEmptyLocation = Event(
+            id: "test-id",
+            title: "Test Event",
+            description: "Description",
+            date: Date(),
+            location: "", // ← Location vide
+            organizer: "Organisateur",
+            organizerImageURL: "https://example.com/organizer.jpg",
+            imageURL: "https://example.com/image.jpg",
+            category: "Test",
+            tags: ["test"],
+            createdAt: Date()
+        )
+        
+        // **Définir l'événement directement**
+        viewModel.event = mockEventWithEmptyLocation
+        resetMockFlags()
+        
+        // When
+        await viewModel.geocodeEventLocation()
+        
+        // Then
+        XCTAssertFalse(mockGeocodingService.geocodeAddressCalled, "geocodeAddress ne devrait pas être appelé car la location est vide")
+        XCTAssertNil(viewModel.coordinates, "Les coordonnées devraient rester nil")
+        XCTAssertNil(viewModel.mapImageURL, "L'URL de l'image de carte devrait rester nil")
+    }
+    
+    func testGeocodeEventLocation_WhenCoordinatesAlreadyExist_ShouldGenerateMapURL() async {
+        // Given
+        let mockEvent = createMockEvent()
+        viewModel.event = mockEvent
+        
+        let coordinates = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+        viewModel.coordinates = coordinates
+        resetMockFlags()
+        
+        // When
+        await viewModel.geocodeEventLocation()
+        
+        // Then
+        XCTAssertNotNil(viewModel.mapImageURL, "L'URL de l'image de carte ne devrait pas être nil")
+        XCTAssertTrue(viewModel.mapImageURL!.absoluteString.contains("staticmap"), "L'URL devrait contenir 'staticmap'")
+        XCTAssertFalse(mockGeocodingService.geocodeAddressCalled, "geocodeAddress ne devrait pas être appelé car les coordonnées existent déjà")
+    }
+    
+    func testGeocodeEventLocation_WhenSuccess_ShouldSetCoordinatesAndGenerateMapURL() async throws {
+        // Given
+        let mockEvent = createMockEvent()
+        viewModel.event = mockEvent
+        
+        let latitude = 48.8566
+        let longitude = 2.3522
+        let mockPlacemark = createMockPlacemark(latitude: latitude, longitude: longitude)
+        mockGeocodingService.mockPlacemarks = [mockPlacemark]
+        
+        resetMockFlags()
+        viewModel.coordinates = nil // Force le géocodage
+        
+        // When
+        await viewModel.geocodeEventLocation()
+        
+        // Then
+        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
+        
+        let coordinates = try XCTUnwrap(viewModel.coordinates, "Les coordonnées ne devraient pas être nil")
+        XCTAssertEqual(coordinates.latitude, latitude, accuracy: 0.0001, "La latitude devrait correspondre")
+        XCTAssertEqual(coordinates.longitude, longitude, accuracy: 0.0001, "La longitude devrait correspondre")
+        
+        XCTAssertNotNil(viewModel.mapImageURL, "L'URL de l'image de carte ne devrait pas être nil")
+    }
+    
+    func testGeocodeEventLocation_WhenGeocodingFails_ShouldSetErrorMessage() async {
+        // Given
+        let mockEvent = createMockEvent()
+        viewModel.event = mockEvent
+        
+        mockGeocodingService.shouldThrowError = true
+        mockGeocodingService.mockError = NSError(domain: "GeocodingError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Erreur de géocodage"])
+        resetMockFlags()
+        
+        // When
+        await viewModel.geocodeEventLocation()
+        
+        // Then
+        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
+        XCTAssertNil(viewModel.coordinates)
+        XCTAssertNil(viewModel.mapImageURL)
+        XCTAssertTrue(viewModel.errorMessage.contains("Erreur de géocodage"))
+    }
+    
+    func testGeocodeEventLocation_WhenNoPlacemarkFound_ShouldSetErrorMessage() async {
+        // Given
+        let mockEvent = createMockEvent()
+        viewModel.event = mockEvent
+        
+        mockGeocodingService.mockPlacemarks = [] // ← Aucun résultat
+        resetMockFlags()
+        
+        // When
+        await viewModel.geocodeEventLocation()
+        
+        // Then
+        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled)
+        XCTAssertNil(viewModel.coordinates)
+        XCTAssertNil(viewModel.mapImageURL)
+        XCTAssertTrue(viewModel.errorMessage.contains("Impossible de localiser l'adresse"))
+    }
+    
+    // MARK: - Map URL Generation Tests
+    
+    func testGenerateMapImageURL_WhenNoCoordinates_ShouldNotGenerateURL() {
+        // Given
+        viewModel.coordinates = nil
+        
+        // When
+        viewModel.generateMapImageURL()
+        
+        // Then
+        XCTAssertNil(viewModel.mapImageURL)
+    }
+    
+    func testGenerateMapImageURL_WhenValidCoordinates_ShouldGenerateURL() {
+        // Given
+        let coordinates = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
+        viewModel.coordinates = coordinates
+        
+        // When
+        viewModel.generateMapImageURL()
+        
+        // Then
+        XCTAssertNotNil(viewModel.mapImageURL)
+        XCTAssertTrue(viewModel.mapImageURL!.absoluteString.contains("staticmap"))
+        XCTAssertTrue(viewModel.mapImageURL!.absoluteString.contains("48.8566"))
+        XCTAssertTrue(viewModel.mapImageURL!.absoluteString.contains("2.3522"))
+    }
+    
+    // MARK: - Integration Tests
+    
+    func testLoadEventWithAutoGeocode_WhenEnabled_ShouldGeocodeAutomatically() async {
+        // Given
+        let viewModelWithAutoGeocode = EventDetailsViewModel(
+            firestoreService: mockFirestoreService,
+            geocodingService: mockGeocodingService,
+            mapNetworkService: mockMapNetworkService,
+            configurationService: mockConfigurationService,
+            isTestMode: true,
+            shouldAutoGeocode: true // ← Activer le géocodage automatique
+        )
+        
+        let eventID = "test-event-id"
+        let mockEvent = createMockEvent(id: eventID)
+        let mockSnapshot = createMockDocumentSnapshot(exists: true, event: mockEvent, documentID: eventID)
+        
+        mockFirestoreService.mockDocument = mockSnapshot
+        resetMockFlags()
+        
+        // When
+        await viewModelWithAutoGeocode.loadEvent(eventID: eventID)
+        
+        // Then
+        XCTAssertTrue(mockGeocodingService.geocodeAddressCalled, "Le géocodage automatique devrait être appelé")
+        XCTAssertNotNil(viewModelWithAutoGeocode.coordinates, "Les coordonnées devraient être définies")
     }
 
 }

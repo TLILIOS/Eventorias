@@ -11,6 +11,7 @@
 import SwiftUI
 
 struct EventSearchBar: View {
+    var backgroundColor: Color = Color("DarkGray")
     let eventViewModel: EventViewModel
     @FocusState private var isSearchFocused: Bool
     
@@ -47,7 +48,7 @@ struct EventSearchBar: View {
                 }
             }
             .frame(height: 45)
-            .background(Color("DarkGry"))
+            .background(backgroundColor)
             .cornerRadius(22.5)
         }
         .padding(.horizontal, 16)

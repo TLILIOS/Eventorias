@@ -8,7 +8,7 @@
 import Foundation
 
 /// Types d'erreurs pouvant être renvoyées par les opérations Keychain
-public enum KeychainError: Error {
+public enum KeychainError: Error, Equatable {
     /// Erreur lors de la création d'un item dans le Keychain
     case creationFailed(OSStatus)
     /// Erreur lors de la récupération d'un item du Keychain

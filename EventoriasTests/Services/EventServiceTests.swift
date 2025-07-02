@@ -1,272 +1,443 @@
-// 
-// EventServiceTests.swift
-// EventoriasTests
 //
-// Created on 13/06/2025.
+//  EventServiceTests.swift
+//  EventoriasTests
+//
+//  Created by TLiLi Hamdi on 27/06/2025.
 //
 
 import XCTest
 import CoreLocation
-import UIKit
 @testable import Eventorias
-
-class EventServiceTests: XCTestCase {
+@MainActor
+final class EventServiceTests: XCTestCase {
     
-    var mockService: MockEventService!
+    var mockEventService: MockEventService!
     
     override func setUp() {
         super.setUp()
-        mockService = MockEventService()
+        mockEventService = MockEventService()
     }
     
     override func tearDown() {
-        mockService = nil
+        mockEventService = nil
         super.tearDown()
     }
     
-    // Create sample events for testing
-    private func createSampleEvents() -> [Event] {
-        let now = Date()
-        return [
-            Event(
-                id: "1",
-                title: "Concert de musique",
-                description: "Un concert exceptionnel",
-                date: now.addingTimeInterval(60*60*24), // 1 day from now
-                location: "Paris",
-                organizer: "Organizer 1",
-                organizerImageURL: nil,
-                imageURL: nil,
-                category: "Musique",
-                tags: ["concert", "musique"],
-                createdAt: now
-            ),
-            Event(
-                id: "2",
-                title: "Exposition d'art",
-                description: "Une exposition unique",
-                date: now.addingTimeInterval(60*60*48), // 2 days from now
-                location: "Lyon",
-                organizer: "Organizer 2",
-                organizerImageURL: nil,
-                imageURL: nil,
-                category: "Art",
-                tags: ["exposition", "art"],
-                createdAt: now
-            ),
-            Event(
-                id: "3",
-                title: "Conférence tech",
-                description: "Une conférence sur les nouvelles technologies",
-                date: now.addingTimeInterval(60*60*72), // 3 days from now
-                location: "Bordeaux",
-                organizer: "Organizer 3",
-                organizerImageURL: nil,
-                imageURL: nil,
-                category: "Technologie",
-                tags: ["tech", "conférence"],
-                createdAt: now
-            )
-        ]
-    }
+    // MARK: - Tests de récupération des événements
     
-    func testFetchEvents() async {
-        // Setup sample events
-        let sampleEvents = createSampleEvents()
-        mockService.mockEvents = sampleEvents
+    func testFetchEventsSuccess() async {
+        // Arrange
+        let sampleEvent1 = Event(
+            id: "event1",
+            title: "Événement test 1",
+            description: "Description de l'événement 1",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur test",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Test",
+            tags: ["Test"],
+            createdAt: Date()
+        )
         
+        let sampleEvent2 = Event(
+            id: "event2",
+            title: "Événement test 2",
+            description: "Description de l'événement 2",
+            date: Date().addingTimeInterval(86400), // +1 jour
+            location: "Lyon",
+            organizer: "Organisateur test",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Test",
+            tags: ["Test"],
+            createdAt: Date()
+        )
+        
+        mockEventService.eventsToReturn = [sampleEvent1, sampleEvent2]
+        mockEventService.shouldThrowError = false
+        
+        // Act
         do {
-            let events = try await mockService.fetchEvents()
+            let events = try await mockEventService.fetchEvents()
             
-            // Verify method was called
-            XCTAssertTrue(mockService.fetchEventsCalled)
-            
-            // Verify returned data
-            XCTAssertEqual(events.count, sampleEvents.count)
-            XCTAssertEqual(events[0].id, "1")
-            XCTAssertEqual(events[1].id, "2")
-            XCTAssertEqual(events[2].id, "3")
+            // Assert
+            XCTAssertTrue(mockEventService.fetchEventsCalled, "La méthode fetchEvents n'a pas été appelée")
+            XCTAssertEqual(events.count, 2, "Le nombre d'événements récupérés ne correspond pas")
+            XCTAssertEqual(events[0].id, "event1", "L'ID du premier événement ne correspond pas")
+            XCTAssertEqual(events[1].id, "event2", "L'ID du deuxième événement ne correspond pas")
         } catch {
-            XCTFail("fetchEvents should not throw an error: \(error)")
+            XCTFail("La récupération des événements a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
     func testFetchEventsFailure() async {
-        // Setup error
-        let expectedError = NSError(domain: "EventServiceError", code: 1, 
-                                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch events"])
-        mockService.mockError = expectedError
+        // Arrange
+        mockEventService.shouldThrowError = true
         
+        // Act & Assert
         do {
-            _ = try await mockService.fetchEvents()
-            XCTFail("fetchEvents should throw an error")
+            _ = try await mockEventService.fetchEvents()
+            XCTFail("La récupération des événements a réussi alors qu'elle devrait échouer")
         } catch {
-            // Verify method was called
-            XCTAssertTrue(mockService.fetchEventsCalled)
-            
-            // Verify the error
-            let nsError = error as NSError
-            XCTAssertEqual(nsError.domain, "EventServiceError")
-            XCTAssertEqual(nsError.code, 1)
+            XCTAssertTrue(mockEventService.fetchEventsCalled, "La méthode fetchEvents n'a pas été appelée")
         }
     }
     
-    func testSearchEvents() async {
-        // Setup sample events
-        let sampleEvents = createSampleEvents()
-        mockService.mockEvents = sampleEvents
+    // MARK: - Tests de recherche d'événements
+    
+    func testSearchEventsSuccess() async {
+        // Arrange
+        let matchingEvent = Event(
+            id: "event1",
+            title: "Concert de musique",
+            description: "Description",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Musique",
+            tags: ["Musique"],
+            createdAt: Date()
+        )
         
+        let nonMatchingEvent = Event(
+            id: "event2",
+            title: "Exposition d'art",
+            description: "Description",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Art",
+            tags: ["Art"],
+            createdAt: Date()
+        )
+        
+        mockEventService.eventsToReturn = [matchingEvent, nonMatchingEvent]
+        mockEventService.shouldThrowError = false
+        
+        // Act
         do {
-            let events = try await mockService.searchEvents(query: "art")
+            let events = try await mockEventService.searchEvents(query: "Concert")
             
-            // Verify method was called with the right parameters
-            XCTAssertTrue(mockService.searchEventsCalled)
-            XCTAssertEqual(mockService.lastSearchQuery, "art")
-            
-            // Because our mock implementation does a simple filter, we should only get events with "art" in the title
-            XCTAssertEqual(events.count, 1)
-            XCTAssertEqual(events[0].id, "2")
-            XCTAssertEqual(events[0].title, "Exposition d'art")
+            // Assert
+            XCTAssertTrue(mockEventService.searchEventsCalled, "La méthode searchEvents n'a pas été appelée")
+            XCTAssertEqual(events.count, 1, "Le nombre d'événements recherchés ne correspond pas")
+            XCTAssertEqual(events[0].id, "event1", "L'ID de l'événement recherché ne correspond pas")
         } catch {
-            XCTFail("searchEvents should not throw an error: \(error)")
+            XCTFail("La recherche d'événements a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
-    func testFilterEventsByCategory() async {
-        // Setup sample events
-        let sampleEvents = createSampleEvents()
-        mockService.mockEvents = sampleEvents
+    func testSearchEventsNoResults() async {
+        // Arrange
+        let event1 = Event(
+            id: "event1",
+            title: "Concert de musique",
+            description: "Description",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Musique",
+            tags: ["Musique"],
+            createdAt: Date()
+        )
         
+        let event2 = Event(
+            id: "event2",
+            title: "Exposition d'art",
+            description: "Description",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Art",
+            tags: ["Art"],
+            createdAt: Date()
+        )
+        
+        mockEventService.eventsToReturn = [event1, event2]
+        mockEventService.shouldThrowError = false
+        
+        // Act
         do {
-            let events = try await mockService.filterEventsByCategory(category: "Musique")
+            let events = try await mockEventService.searchEvents(query: "Théâtre")
             
-            // Verify method was called with the right parameters
-            XCTAssertTrue(mockService.filterEventsByCategoryCalled)
-            XCTAssertEqual(mockService.lastCategory, "Musique")
-            
-            // Because our mock implementation does a simple filter, we should only get events with category "Musique"
-            XCTAssertEqual(events.count, 1)
-            XCTAssertEqual(events[0].id, "1")
-            XCTAssertEqual(events[0].category, "Musique")
+            // Assert
+            XCTAssertTrue(mockEventService.searchEventsCalled, "La méthode searchEvents n'a pas été appelée")
+            XCTAssertEqual(events.count, 0, "La recherche devrait retourner 0 événement")
         } catch {
-            XCTFail("filterEventsByCategory should not throw an error: \(error)")
+            XCTFail("La recherche d'événements a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
+    
+    // MARK: - Tests de filtrage par catégorie
+    
+    func testFilterEventsByCategorySuccess() async {
+        // Arrange
+        let musicEvent = Event(
+            id: "event1",
+            title: "Concert de musique",
+            description: "Description",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Musique",
+            tags: ["Musique"],
+            createdAt: Date()
+        )
+        
+        let artEvent = Event(
+            id: "event2",
+            title: "Exposition d'art",
+            description: "Description",
+            date: Date(),
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Art",
+            tags: ["Art"],
+            createdAt: Date()
+        )
+        
+        mockEventService.eventsToReturn = [musicEvent, artEvent]
+        mockEventService.shouldThrowError = false
+        
+        // Act
+        do {
+            let events = try await mockEventService.filterEventsByCategory(category: "Musique")
+            
+            // Assert
+            XCTAssertTrue(mockEventService.filterEventsByCategoryCalled, "La méthode filterEventsByCategory n'a pas été appelée")
+            XCTAssertEqual(events.count, 1, "Le nombre d'événements filtrés ne correspond pas")
+            XCTAssertEqual(events[0].id, "event1", "L'ID de l'événement filtré ne correspond pas")
+        } catch {
+            XCTFail("Le filtrage des événements a échoué alors qu'il devrait réussir: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Tests de tri par date
     
     func testGetEventsSortedByDateAscending() async {
-        // Setup sample events
-        let sampleEvents = createSampleEvents()
-        mockService.mockEvents = sampleEvents
+        // Arrange
+        let oldEvent = Event(
+            id: "event1",
+            title: "Ancien événement",
+            description: "Description",
+            date: Date().addingTimeInterval(-86400), // -1 jour
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Test",
+            tags: ["Test"],
+            createdAt: Date()
+        )
         
+        let newEvent = Event(
+            id: "event2",
+            title: "Nouvel événement",
+            description: "Description",
+            date: Date().addingTimeInterval(86400), // +1 jour
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Test",
+            tags: ["Test"],
+            createdAt: Date()
+        )
+        
+        mockEventService.eventsToReturn = [newEvent, oldEvent] // Ordre inversé intentionnellement
+        mockEventService.shouldThrowError = false
+        
+        // Act
         do {
-            let events = try await mockService.getEventsSortedByDate(ascending: true)
+            let events = try await mockEventService.getEventsSortedByDate(ascending: true)
             
-            // Verify method was called with the right parameters
-            XCTAssertTrue(mockService.getEventsSortedByDateCalled)
-            XCTAssertTrue(mockService.lastSortAscending ?? false)
-            
-            // Verify the events are sorted correctly (ascending by date)
-            XCTAssertEqual(events.count, 3)
-            XCTAssertEqual(events[0].id, "1") // 1 day from now
-            XCTAssertEqual(events[1].id, "2") // 2 days from now
-            XCTAssertEqual(events[2].id, "3") // 3 days from now
+            // Assert
+            XCTAssertTrue(mockEventService.getEventsSortedByDateCalled, "La méthode getEventsSortedByDate n'a pas été appelée")
+            XCTAssertEqual(events.count, 2, "Le nombre d'événements triés ne correspond pas")
+            XCTAssertEqual(events[0].id, "event1", "Le premier événement devrait être le plus ancien")
+            XCTAssertEqual(events[1].id, "event2", "Le deuxième événement devrait être le plus récent")
         } catch {
-            XCTFail("getEventsSortedByDate should not throw an error: \(error)")
+            XCTFail("Le tri des événements a échoué alors qu'il devrait réussir: \(error.localizedDescription)")
         }
     }
     
     func testGetEventsSortedByDateDescending() async {
-        // Setup sample events
-        let sampleEvents = createSampleEvents()
-        mockService.mockEvents = sampleEvents
+        // Arrange
+        let oldEvent = Event(
+            id: "event1",
+            title: "Ancien événement",
+            description: "Description",
+            date: Date().addingTimeInterval(-86400), // -1 jour
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Test",
+            tags: ["Test"],
+            createdAt: Date()
+        )
         
+        let newEvent = Event(
+            id: "event2",
+            title: "Nouvel événement",
+            description: "Description",
+            date: Date().addingTimeInterval(86400), // +1 jour
+            location: "Paris",
+            organizer: "Organisateur",
+            organizerImageURL: nil,
+            imageURL: nil,
+            category: "Test",
+            tags: ["Test"],
+            createdAt: Date()
+        )
+        
+        mockEventService.eventsToReturn = [oldEvent, newEvent] // Ordre inversé intentionnellement
+        mockEventService.shouldThrowError = false
+        
+        // Act
         do {
-            let events = try await mockService.getEventsSortedByDate(ascending: false)
+            let events = try await mockEventService.getEventsSortedByDate(ascending: false)
             
-            // Verify method was called with the right parameters
-            XCTAssertTrue(mockService.getEventsSortedByDateCalled)
-            XCTAssertFalse(mockService.lastSortAscending ?? true)
-            
-            // Verify the events are sorted correctly (descending by date)
-            XCTAssertEqual(events.count, 3)
-            XCTAssertEqual(events[0].id, "3") // 3 days from now
-            XCTAssertEqual(events[1].id, "2") // 2 days from now
-            XCTAssertEqual(events[2].id, "1") // 1 day from now
+            // Assert
+            XCTAssertTrue(mockEventService.getEventsSortedByDateCalled, "La méthode getEventsSortedByDate n'a pas été appelée")
+            XCTAssertEqual(events.count, 2, "Le nombre d'événements triés ne correspond pas")
+            XCTAssertEqual(events[0].id, "event2", "Le premier événement devrait être le plus récent")
+            XCTAssertEqual(events[1].id, "event1", "Le deuxième événement devrait être le plus ancien")
         } catch {
-            XCTFail("getEventsSortedByDate should not throw an error: \(error)")
+            XCTFail("Le tri des événements a échoué alors qu'il devrait réussir: \(error.localizedDescription)")
         }
     }
+    
+    // MARK: - Tests de vérification de collection vide
     
     func testIsEventsCollectionEmpty() async {
-        mockService.mockIsEmpty = true
+        // Arrange
+        mockEventService.isCollectionEmptyToReturn = true
+        mockEventService.shouldThrowError = false
         
+        // Act
         do {
-            let isEmpty = try await mockService.isEventsCollectionEmpty()
+            let isEmpty = try await mockEventService.isEventsCollectionEmpty()
             
-            // Verify method was called
-            XCTAssertTrue(mockService.isEventsCollectionEmptyCalled)
-            
-            // Verify returned data
-            XCTAssertTrue(isEmpty)
+            // Assert
+            XCTAssertTrue(mockEventService.isEventsCollectionEmptyCalled, "La méthode isEventsCollectionEmpty n'a pas été appelée")
+            XCTAssertTrue(isEmpty, "La collection devrait être vide")
         } catch {
-            XCTFail("isEventsCollectionEmpty should not throw an error: \(error)")
+            XCTFail("La vérification a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
-    func testCreateEvent() async {
-        // Setup for success
-        mockService.mockEventId = "new-event-id"
+    // MARK: - Tests de création d'événement
+    
+    func testCreateEventSuccess() async {
+        // Arrange
+        mockEventService.eventIdToReturn = "new-event-id"
+        mockEventService.shouldThrowError = false
+        let title = "Nouvel événement"
+        let description = "Description de l'événement"
+        let date = Date().addingTimeInterval(86400) // +1 jour
+        let location = "Paris, France"
+        let imageURL = "https://example.com/image.jpg"
         
-        let title = "New Event"
-        let description = "Event Description"
-        let date = Date()
-        let location = "Event Location"
-        let imageURL = "https://example.com/test-image.jpg" 
-        
+        // Act
         do {
-            let eventId = try await mockService.createEvent(
+            let eventId = try await mockEventService.createEvent(
                 title: title,
                 description: description,
                 date: date,
                 location: location,
-                imageURL: imageURL // Changer 'image:' en 'imageURL:'
+                imageURL: imageURL
             )
             
-            // Verify method was called with the right parameters
-            XCTAssertTrue(mockService.createEventCalled)
-            XCTAssertEqual(mockService.lastEventTitle, title)
-            XCTAssertEqual(mockService.lastEventDescription, description)
-            XCTAssertEqual(mockService.lastEventDate, date)
-            XCTAssertEqual(mockService.lastEventLocation, location)
-            XCTAssertEqual(mockService.lastImageURL, imageURL) // Changer en lastImageURL
-            
-            // Verify returned data
-            XCTAssertEqual(eventId, "new-event-id")
+            // Assert
+            XCTAssertTrue(mockEventService.createEventCalled, "La méthode createEvent n'a pas été appelée")
+            XCTAssertEqual(eventId, "new-event-id", "L'ID de l'événement créé ne correspond pas")
         } catch {
-            XCTFail("createEvent should not throw an error: \(error)")
+            XCTFail("La création d'événement a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
-
-    func testGetCoordinatesForAddress() async {
-        // Setup expected coordinates
-        let expectedCoordinates = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522)
-        mockService.mockCoordinates = expectedCoordinates
+    // MARK: - Tests d'upload d'image
+    
+    func testUploadImageSuccess() async {
+        // Arrange
+        let imageData = Data(repeating: 0, count: 100) // Données d'image simulées
+        mockEventService.imageURLToReturn = "https://example.com/uploaded-image.jpg"
+        mockEventService.shouldThrowError = false
         
-        let address = "Paris, France"
-        
+        // Act
         do {
-            let coordinates = try await mockService.getCoordinatesForAddress(address)
+            let imageURL = try await mockEventService.uploadImage(imageData: imageData)
             
-            // Verify method was called with the right parameters
-            XCTAssertTrue(mockService.getCoordinatesForAddressCalled)
-            XCTAssertEqual(mockService.lastEventLocation, address)
-            
-            // Verify returned data
-            XCTAssertEqual(coordinates.latitude, expectedCoordinates.latitude, accuracy: 0.0001)
-            XCTAssertEqual(coordinates.longitude, expectedCoordinates.longitude, accuracy: 0.0001)
+            // Assert
+            XCTAssertTrue(mockEventService.uploadImageCalled, "La méthode uploadImage n'a pas été appelée")
+            XCTAssertEqual(imageURL, "https://example.com/uploaded-image.jpg", "L'URL de l'image ne correspond pas")
         } catch {
-            XCTFail("getCoordinatesForAddress should not throw an error: \(error)")
+            XCTFail("L'upload d'image a échoué alors qu'il devrait réussir: \(error.localizedDescription)")
+        }
+    }
+    
+    func testUploadImageFailure() async {
+        // Arrange
+        let imageData = Data(repeating: 0, count: 100) // Données d'image simulées
+        mockEventService.shouldThrowError = true
+        
+        // Act & Assert
+        do {
+            _ = try await mockEventService.uploadImage(imageData: imageData)
+            XCTFail("L'upload d'image a réussi alors qu'il devrait échouer")
+        } catch {
+            XCTAssertTrue(mockEventService.uploadImageCalled, "La méthode uploadImage n'a pas été appelée")
+        }
+    }
+    
+    // MARK: - Tests de géocodage
+    
+    func testGetCoordinatesForAddressSuccess() async {
+        // Arrange
+        let address = "Paris, France"
+        let expectedCoordinates = CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522) // Paris
+        mockEventService.coordinatesToReturn = expectedCoordinates
+        mockEventService.shouldThrowError = false
+        
+        // Act
+        do {
+            let coordinates = try await mockEventService.getCoordinatesForAddress(address)
+            
+            // Assert
+            XCTAssertTrue(mockEventService.getCoordinatesForAddressCalled, "La méthode getCoordinatesForAddress n'a pas été appelée")
+            XCTAssertEqual(coordinates.latitude, expectedCoordinates.latitude, accuracy: 0.0001, "La latitude ne correspond pas")
+            XCTAssertEqual(coordinates.longitude, expectedCoordinates.longitude, accuracy: 0.0001, "La longitude ne correspond pas")
+        } catch {
+            XCTFail("Le géocodage a échoué alors qu'il devrait réussir: \(error.localizedDescription)")
+        }
+    }
+    
+    func testGetCoordinatesForAddressFailure() async {
+        // Arrange
+        let address = "Adresse inexistante"
+        mockEventService.shouldThrowError = true
+        
+        // Act & Assert
+        do {
+            _ = try await mockEventService.getCoordinatesForAddress(address)
+            XCTFail("Le géocodage a réussi alors qu'il devrait échouer")
+        } catch {
+            XCTAssertTrue(mockEventService.getCoordinatesForAddressCalled, "La méthode getCoordinatesForAddress n'a pas été appelée")
         }
     }
 }

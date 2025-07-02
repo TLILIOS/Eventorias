@@ -8,39 +8,7 @@
 import Foundation
 import FirebaseAuth
 
-// MARK: - User Protocol
-
-/// Protocole définissant un utilisateur authentifié
-public protocol UserProtocol {
-    /// L'identifiant unique de l'utilisateur
-    var uid: String { get }
-    
-    /// L'adresse e-mail de l'utilisateur (si disponible)
-    var email: String? { get }
-    
-    /// Le nom d'affichage de l'utilisateur (si disponible)
-    var displayName: String? { get }
-    
-    /// L'URL de la photo de profil de l'utilisateur (si disponible)
-    var photoURL: URL? { get }
-    
-    /// Indique si l'utilisateur est anonyme
-    var isAnonymous: Bool { get }
-    
-    /// Indique si l'adresse e-mail de l'utilisateur est vérifiée
-    var isEmailVerified: Bool { get }
-    
-    /// Méthode pour obtenir l'URL de la photo de profil (contourne les limitations des protocoles existentiels)
-    func getPhotoURL() -> URL?
-}
-
-// MARK: - AuthDataResult Protocol
-
-/// Protocole définissant le résultat d'une opération d'authentification
-public protocol AuthDataResultProtocol {
-    /// L'utilisateur authentifié
-    var user: UserProtocol { get }
-}
+// Utilisation des protocols définis dans AuthProviderProtocol.swift
 
 // MARK: - Firebase User Adapter
 
@@ -76,6 +44,8 @@ final class FirebaseUserAdapter: UserProtocol {
         return firebaseUser.isEmailVerified
     }
     
+    // Note: cette méthode n'est pas définie dans le protocole UserProtocol de AuthProviderProtocol.swift
+    // mais est utilisée dans l'implémentation actuelle
     func getPhotoURL() -> URL? {
         return firebaseUser.photoURL
     }
@@ -94,13 +64,17 @@ final class FirebaseAuthDataResultAdapter: AuthDataResultProtocol {
     var user: UserProtocol {
         return FirebaseUserAdapter(firebaseAuthDataResult.user)
     }
+    
+    var additionalUserInfo: [String: Any]? {
+        return firebaseAuthDataResult.additionalUserInfo?.dictionaryValue
+    }
 }
 
 // MARK: - User Extension
 
 /// Extension pour convertir User de Firebase en UserProtocol
 extension User: UserProtocol {
-    /// Retourne l'URL de la photo de profil
+    /// Implémentation de getPhotoURL() exigée par UserProtocol
     public func getPhotoURL() -> URL? {
         return photoURL
     }

@@ -1,32 +1,141 @@
-//
-// MockAuthService.swift
-// EventoriasTests
-//
-// Created on 13/06/2025.
-//
-
 import Foundation
-import Firebase
-import FirebaseAuth
+import XCTest
 @testable import Eventorias
-
-// Utilisation des protocoles définis dans l'application principale
-
-// Classes Mock
-class MockUser: UserProtocol {
-    let uid: String
-    let email: String?
-    let displayName: String?
-    let photoURL: URL?
-    let isAnonymous: Bool
-    let isEmailVerified: Bool
+@MainActor
+/// Mock pour AuthenticationServiceProtocol facilitant les tests unitaires
+final class MockAuthenticationService: AuthenticationServiceProtocol {
+    var currentUserMock: UserProtocol?
+    var currentUserDisplayNameMock: String = "Utilisateur Test"
+    var currentUserEmailMock: String? = "test@exemple.com"
     
-    init(uid: String = "mock-uid",
-         email: String? = "mock@example.com",
-         displayName: String? = "Mock User",
-         photoURL: URL? = nil,
-         isAnonymous: Bool = false,
-         isEmailVerified: Bool = true) {
+    // Tracking des appels pour la vérification dans les tests
+    var signInCalled = false
+    var signUpCalled = false
+    var signOutCalled = false
+    var getCurrentUserCalled = false
+    var isUserAuthenticatedCalled = false
+    var isValidEmailCalled = false
+    var isValidPasswordCalled = false
+    var updateUserProfileCalled = false
+    var deleteAccountCalled = false
+    var resetPasswordCalled = false
+    
+    // Variables pour contrôler le comportement des fonctions
+    var shouldThrowError = false
+    var mockError: Error = NSError(domain: "MockAuthError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Erreur simulée"])
+    var isUserAuthenticatedReturnValue = false
+    
+    var currentUser: UserProtocol? {
+        getCurrentUserCalled = true
+        return currentUserMock
+    }
+    
+    var currentUserDisplayName: String {
+        return currentUserDisplayNameMock
+    }
+    
+    var currentUserEmail: String? {
+        return currentUserEmailMock
+    }
+    
+    func signIn(email: String, password: String) async throws -> AuthDataResultProtocol {
+        signInCalled = true
+        
+        if shouldThrowError {
+            throw mockError
+        }
+        
+        // Crée un utilisateur mock pour le test
+        let mockUser = MockUser(uid: "test-uid", email: email, displayName: "Test User")
+        currentUserMock = mockUser
+        
+        return MockAuthDataResult(user: mockUser)
+    }
+    
+    func signUp(email: String, password: String) async throws -> AuthDataResultProtocol {
+        signUpCalled = true
+        
+        if shouldThrowError {
+            throw mockError
+        }
+        
+        let mockUser = MockUser(uid: "new-test-uid", email: email, displayName: "Nouvel Utilisateur")
+        currentUserMock = mockUser
+        
+        return MockAuthDataResult(user: mockUser)
+    }
+    
+    func signOut() throws {
+        signOutCalled = true
+        
+        if shouldThrowError {
+            throw mockError
+        }
+        
+        currentUserMock = nil
+    }
+    
+    func getCurrentUser() -> UserProtocol? {
+        getCurrentUserCalled = true
+        return currentUserMock
+    }
+    
+    func isUserAuthenticated() -> Bool {
+        isUserAuthenticatedCalled = true
+        return isUserAuthenticatedReturnValue
+    }
+    
+    func isValidEmail(_ email: String) -> Bool {
+        isValidEmailCalled = true
+        return email.contains("@") && email.contains(".")
+    }
+    
+    func isValidPassword(_ password: String) -> Bool {
+        isValidPasswordCalled = true
+        return password.count >= 6
+    }
+    
+    func updateUserProfile(displayName: String?, photoURL: URL?) async throws {
+        updateUserProfileCalled = true
+        
+        if shouldThrowError {
+            throw mockError
+        }
+        
+        if let name = displayName {
+            currentUserDisplayNameMock = name
+        }
+    }
+    
+    func deleteAccount() async throws {
+        deleteAccountCalled = true
+        
+        if shouldThrowError {
+            throw mockError
+        }
+        
+        currentUserMock = nil
+    }
+    
+    func resetPassword(email: String) async throws {
+        resetPasswordCalled = true
+        
+        if shouldThrowError {
+            throw mockError
+        }
+    }
+}
+
+/// Mock pour UserProtocol
+final class MockUser: UserProtocol {
+    var uid: String
+    var email: String?
+    var displayName: String?
+    var photoURL: URL?
+    var isAnonymous: Bool
+    var isEmailVerified: Bool
+    
+    init(uid: String, email: String? = nil, displayName: String? = nil, photoURL: URL? = nil, isAnonymous: Bool = false, isEmailVerified: Bool = true) {
         self.uid = uid
         self.email = email
         self.displayName = displayName
@@ -40,196 +149,13 @@ class MockUser: UserProtocol {
     }
 }
 
-class MockAuthDataResult: AuthDataResultProtocol {
-    let user: UserProtocol
+/// Mock pour AuthDataResultProtocol
+final class MockAuthDataResult: AuthDataResultProtocol {
+    var user: UserProtocol
+    var additionalUserInfo: [String: Any]?
     
-    init(user: UserProtocol = MockUser()) {
+    init(user: UserProtocol, additionalUserInfo: [String: Any]? = nil) {
         self.user = user
-    }
-}
-
-// Extension on AuthDataResult to create a mock instance for testing purposes
-extension AuthDataResult {
-    static var mock: AuthDataResult {
-        // This is a hacky way to create a mock for testing only
-        // It's a dummy object that will never be used for its actual properties
-        // We're just using it as a placeholder for successful auth operations
-        unsafeBitCast(NSObject(), to: AuthDataResult.self)
-    }
-}
-
-class MockAuthService: AuthenticationServiceProtocol {
-    // MARK: - Tracking properties
-    var signInCalled = false
-    var signUpCalled = false
-    var signOutCalled = false
-    var getCurrentUserCalled = false
-    var isUserAuthenticatedCalled = false
-    var isValidEmailCalled = false
-    var isValidPasswordCalled = false
-    
-    // Track the last email and password used
-    var lastEmail: String?
-    var lastPassword: String?
-    
-    // MARK: - Mock responses
-    var mockAuthResult: AuthDataResultProtocol?
-    var mockUser: UserProtocol?
-    var mockIsAuthenticated = false
-    var mockError: Error?
-    
-    // MARK: - Controls behavior for tests
-    var shouldThrowOnSuccess = true  // Set to false for AuthenticationViewModel tests
-    
-    // MARK: - Reset functionality
-    /// Réinitialise tous les états du mock entre les tests
-    func reset() {
-        // Reset tracking properties
-        signInCalled = false
-        signUpCalled = false
-        signOutCalled = false
-        getCurrentUserCalled = false
-        isUserAuthenticatedCalled = false
-        isValidEmailCalled = false
-        isValidPasswordCalled = false
-        
-        // Reset tracked values
-        lastEmail = nil
-        lastPassword = nil
-        
-        // Reset mock responses
-        mockAuthResult = nil
-        mockUser = nil
-        mockIsAuthenticated = false
-        mockError = nil
-        
-        // Reset behavior controls
-        shouldThrowOnSuccess = true
-    }
-    
-    /// Configure le mock pour les tests de succès (AuthenticationViewModel)
-    func configureForViewModelTests() {
-        reset()
-        shouldThrowOnSuccess = false
-    }
-    
-    /// Configure le mock pour les tests de service (AuthenticationService)
-    func configureForServiceTests() {
-        reset()
-        shouldThrowOnSuccess = true
-    }
-    
-    /// Configure une erreur spécifique pour les tests d'erreur
-    func configureError(_ error: Error) {
-        reset()
-        mockError = error
-    }
-    
-    /// Configure un état d'authentification spécifique
-    func configureAuthState(isAuthenticated: Bool) {
-        mockIsAuthenticated = isAuthenticated
-    }
-    
-    // MARK: - Mock functions - override les méthodes d'AuthenticationService
-    override func signIn(email: String, password: String) async throws -> AuthDataResult {
-        signInCalled = true
-        self.lastEmail = email
-        self.lastPassword = password
-        
-        // If there's a specific error set, throw that
-        if let error = mockError {
-            throw error
-        }
-        
-        // For AuthenticationServiceTests, throw a mock error
-        if shouldThrowOnSuccess {
-            let mockError = NSError(domain: "MockAuthService", code: 999,
-                                  userInfo: [NSLocalizedDescriptionKey: "This is a mock implementation"])
-            throw mockError
-        }
-        
-        // For AuthenticationViewModelTests, update authentication state and return mock result
-        mockIsAuthenticated = true
-        return AuthDataResult.mock
-    }
-    
-    override func signUp(email: String, password: String) async throws -> AuthDataResult {
-        signUpCalled = true
-        self.lastEmail = email
-        self.lastPassword = password
-        
-        // If there's a specific error set, throw that
-        if let error = mockError {
-            throw error
-        }
-        
-        // For AuthenticationServiceTests, throw a mock error
-        if shouldThrowOnSuccess {
-            let mockError = NSError(domain: "MockAuthService", code: 999,
-                                  userInfo: [NSLocalizedDescriptionKey: "This is a mock implementation"])
-            throw mockError
-        }
-        
-        // For AuthenticationViewModelTests, update authentication state and return mock result
-        mockIsAuthenticated = true
-        return AuthDataResult.mock
-    }
-    
-    override func signOut() throws {
-        signOutCalled = true
-        mockIsAuthenticated = false  // Reset auth state on sign out
-        if let error = mockError {
-            throw error
-        }
-    }
-    
-    override func getCurrentUser() -> User? {
-        getCurrentUserCalled = true
-        // Nous ne pouvons pas convertir UserProtocol en User, donc nous retournons nil
-        return nil
-    }
-    
-    override func isUserAuthenticated() -> Bool {
-        isUserAuthenticatedCalled = true
-        return mockIsAuthenticated
-    }
-    
-    override func isValidEmail(_ email: String) -> Bool {
-        isValidEmailCalled = true
-        
-        // supporter les domaines d'une seule lettre et les caractères Unicode
-        let emailRegex = "^[\\p{L}\\p{N}._%+-]+@[\\p{L}\\p{N}]([\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?(?:\\.[\\p{L}\\p{N}]([\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?)*\\.[\\p{L}]{1,64}$"
-        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
-        return emailPredicate.evaluate(with: email)
-    }
-
-
-    
-    override func isValidPassword(_ password: String) -> Bool {
-        isValidPasswordCalled = true
-        return password.count >= 6
-    }
-}
-
-// MARK: - Extensions pour faciliter les tests
-extension MockAuthService {
-    /// Vérifie qu'aucune méthode n'a été appelée
-    var hasNoMethodsCalled: Bool {
-        return !signInCalled && !signUpCalled && !signOutCalled &&
-               !getCurrentUserCalled && !isUserAuthenticatedCalled &&
-               !isValidEmailCalled && !isValidPasswordCalled
-    }
-    
-    /// Retourne le nombre total d'appels de méthodes
-    var totalMethodCalls: Int {
-        var count = 0
-        if signInCalled { count += 1 }
-        if signUpCalled { count += 1 }
-        if signOutCalled { count += 1 }
-        if getCurrentUserCalled { count += 1 }
-        if isUserAuthenticatedCalled { count += 1 }
-        if isValidEmailCalled { count += 1 }
-        if isValidPasswordCalled { count += 1 }
-        return count
+        self.additionalUserInfo = additionalUserInfo
     }
 }

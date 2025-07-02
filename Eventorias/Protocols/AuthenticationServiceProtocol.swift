@@ -8,7 +8,7 @@
 import Foundation
 import FirebaseAuth
 
-/// Protocole définissant les opérations d'authentification
+@MainActor
 protocol AuthenticationServiceProtocol {
     /// L'utilisateur actuellement connecté
     var currentUser: UserProtocol? { get }
@@ -63,6 +63,15 @@ protocol AuthenticationServiceProtocol {
     ///   - photoURL: URL de la photo de profil (optionnel)
     /// - Throws: Erreur d'authentification
     func updateUserProfile(displayName: String?, photoURL: URL?) async throws
+    
+    /// Supprime le compte utilisateur actuellement connecté
+    /// - Throws: Erreur d'authentification (par exemple, ré-authentification requise)
+    func deleteAccount() async throws
+    
+    /// Envoie un email de réinitialisation de mot de passe
+    /// - Parameter email: L'adresse email pour réinitialiser le mot de passe
+    /// - Throws: Erreur d'authentification
+    func resetPassword(email: String) async throws
 }
 
 

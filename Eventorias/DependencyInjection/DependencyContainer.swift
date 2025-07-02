@@ -44,6 +44,11 @@ class AppDependencyContainer: DependencyContainerProtocol {
     
     // Cache des services pour éviter de créer plusieurs instances
     private var apiServiceInstance: APIServiceProtocol?
+    private var authServiceInstance: AuthenticationServiceProtocol?
+    private var keychainServiceInstance: KeychainServiceProtocol?
+    private var storageServiceInstance: StorageServiceProtocol?
+    private var firestoreServiceInstance: FirestoreServiceProtocol?
+    private var authViewModelInstance: AuthenticationViewModel?
     
     /// Private initializer to enforce singleton pattern
     private init() {}
@@ -55,7 +60,12 @@ class AppDependencyContainer: DependencyContainerProtocol {
     
     /// Returns the concrete implementation of FirestoreService
     func firestoreService() -> FirestoreServiceProtocol {
-        return DefaultEventFirestoreService()
+        if let existingService = firestoreServiceInstance {
+            return existingService
+        }
+        let newService = DefaultEventFirestoreService()
+        firestoreServiceInstance = newService
+        return newService
     }
     
     /// Returns the concrete implementation of GeocodingService
@@ -75,17 +85,32 @@ class AppDependencyContainer: DependencyContainerProtocol {
     
     /// Returns the concrete implementation of AuthenticationService
     func authenticationService() -> AuthenticationServiceProtocol {
-        return FirebaseAuthenticationService()
+        if let existingService = authServiceInstance {
+            return existingService
+        }
+        let newService = FirebaseAuthenticationService()
+        authServiceInstance = newService
+        return newService
     }
     
     /// Returns the concrete implementation of KeychainService
     func keychainService() -> KeychainServiceProtocol {
-        return KeychainService()
+        if let existingService = keychainServiceInstance {
+            return existingService
+        }
+        let newService = KeychainService()
+        keychainServiceInstance = newService
+        return newService
     }
     
     /// Returns the concrete implementation of StorageService
     func storageService() -> StorageServiceProtocol {
-        return FirebaseStorageService()
+        if let existingService = storageServiceInstance {
+            return existingService
+        }
+        let newService = FirebaseStorageService()
+        storageServiceInstance = newService
+        return newService
     }
     
     /// Returns the concrete implementation of APIService
@@ -96,6 +121,21 @@ class AppDependencyContainer: DependencyContainerProtocol {
         let newService = DefaultAPIService()
         apiServiceInstance = newService
         return newService
+    }
+    
+    /// Redéfinition de la méthode pour utiliser le singleton AuthenticationViewModel
+    func makeAuthenticationViewModel() -> AuthenticationViewModel {
+        if let existingViewModel = authViewModelInstance {
+            return existingViewModel
+        }
+        
+        let newViewModel = AuthenticationViewModel(
+            authService: authenticationService(),
+            keychainService: keychainService(),
+            storageService: storageService()
+        )
+        authViewModelInstance = newViewModel
+        return newViewModel
     }
 }
 
@@ -135,12 +175,15 @@ extension DependencyContainerProtocol {
     }
     
     /// Creates and configures an EventCreationViewModel with the container's services
-    func makeEventCreationViewModel(eventViewModel: EventViewModelProtocol) -> EventCreationViewModel {
+    func makeEventCreationViewModel(eventViewModel: any EventViewModelProtocol) -> EventCreationViewModel {
+        // Wrapping du EventViewModelProtocol avec notre type-erased wrapper
+        let anyEventViewModel = AnyEventViewModel(eventViewModel)
+        
         return EventCreationViewModel(
-            eventViewModel: eventViewModel,
+            eventViewModel: anyEventViewModel,
             authService: authenticationService(),
             storageService: storageService(),
-            firestoreService: firestoreService() as! FirestoreServiceProtocol
+            firestoreService: firestoreService() 
         )
     }
     

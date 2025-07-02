@@ -82,4 +82,21 @@ final class FirebaseAuthenticationService: AuthenticationServiceProtocol {
         
         try await changeRequest.commitChanges()
     }
+    
+    /// Supprime le compte utilisateur actuellement connecté
+    /// - Throws: Erreur d'authentification (par exemple, ré-authentification requise)
+    func deleteAccount() async throws {
+        guard let firebaseUser = Auth.auth().currentUser else {
+            throw NSError(domain: "AuthError", code: 401, userInfo: [NSLocalizedDescriptionKey: "Aucun utilisateur connecté"])
+        }
+        
+        try await firebaseUser.delete()
+    }
+    
+    /// Envoie un email de réinitialisation de mot de passe
+    /// - Parameter email: L'adresse email pour réinitialiser le mot de passe
+    /// - Throws: Erreur d'authentification
+    func resetPassword(email: String) async throws {
+        try await Auth.auth().sendPasswordReset(withEmail: email)
+    }
 }

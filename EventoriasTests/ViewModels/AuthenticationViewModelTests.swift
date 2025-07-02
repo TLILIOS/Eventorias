@@ -1,608 +1,477 @@
-
 //
-// AuthenticationViewModelTests.swift
-// EventoriasTests
+//  AuthenticationViewModelTests.swift
+//  EventoriasTests
 //
-// Created on 13/06/2025.
+//  Created on 27/06/2025
 //
 
 import XCTest
+import Combine
 @testable import Eventorias
-
 @MainActor
-final class AuthenticationViewModelTests: XCTestCase {
+class AuthenticationViewModelTests: XCTestCase {
+    // MARK: - Properties
+    private var viewModel: AuthenticationViewModel!
+    private var mockAuthService: MockAuthenticationService!
+    private var mockKeychainService: MockKeychainService!
+    private var mockStorageService: MockStorageService!
+    private var cancellables: Set<AnyCancellable>!
     
-    var mockAuthService: MockAuthenticationService!
-    var mockKeychainService: MockKeychainService!
-    var sut: AuthenticationViewModel!
+    // MARK: - Setup & Teardown
     
     override func setUp() {
         super.setUp()
         mockAuthService = MockAuthenticationService()
         mockKeychainService = MockKeychainService()
+        mockStorageService = MockStorageService()
         
-        // Configuration des mocks pour les tests
-        mockAuthService.configureForSuccess()
-        mockKeychainService.configureForSuccess()
+        // Réinitialisation des compteurs pour que chaque test commence avec des compteurs à 0
+        mockKeychainService.saveCallCount = 0
+        mockKeychainService.retrieveCallCount = 0
+        mockKeychainService.deleteCallCount = 0
         
-        // Injection des dépendances via le constructeur
-        sut = AuthenticationViewModel(authService: mockAuthService, keychainService: mockKeychainService)
+        // Nettoyer UserDefaults avant chaque test pour garantir l'isolation
+        UserDefaults.standard.removeObject(forKey: "lastUserEmail")
+        UserDefaults.standard.removeObject(forKey: "lastUsername")
+        
+        viewModel = AuthenticationViewModel(
+            authService: mockAuthService,
+            keychainService: mockKeychainService,
+            storageService: mockStorageService
+        )
+        cancellables = []
     }
     
     override func tearDown() {
+        // Nettoyer UserDefaults après chaque test
+        UserDefaults.standard.removeObject(forKey: "lastUserEmail")
+        UserDefaults.standard.removeObject(forKey: "lastUsername")
+        
+        // Réinitialiser les mocks et libérer les ressources
+        viewModel = nil
         mockAuthService = nil
         mockKeychainService = nil
-        sut = nil
+        mockStorageService = nil
+        cancellables = nil
         super.tearDown()
     }
     
-    // MARK: - Tests existants améliorés
+    // MARK: - Helper Methods
     
-    func testInitialization() {
-        XCTAssertEqual(sut.email, "")
-        XCTAssertEqual(sut.password, "")
-        XCTAssertEqual(sut.username, "")
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertFalse(sut.isAuthenticated)
-        XCTAssertFalse(sut.showingError)
-        XCTAssertEqual(sut.errorMessage, "")
-        XCTAssertNil(sut.profileImage)
-        XCTAssertFalse(sut.isUploadingImage)
-    }
-    
-    // MARK: - Nouveaux tests pour propriétés calculées
-    
-    func testIsSignUpFormValid() {
-        // Test avec tous les champs vides
-        sut.email = ""
-        sut.password = ""
-        sut.username = ""
-        XCTAssertFalse(sut.isSignUpFormValid)
+    private func awaitPublisher<T: Publisher>(
+        _ publisher: T,
+        timeout: TimeInterval = 1.0
+    ) throws -> T.Output where T.Failure == Never {
+        var result: Result<T.Output, Error>?
+        let expectation = expectation(description: "Awaiting publisher")
         
-        // Test avec email et password valides mais username vide
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        sut.username = ""
-        XCTAssertFalse(sut.isSignUpFormValid)
+        publisher
+            .sink(
+                receiveValue: { value in
+                    result = .success(value)
+                    expectation.fulfill()
+                }
+            )
+            .store(in: &cancellables)
         
-        // Test avec tous les champs valides
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        sut.username = "testuser"
-        XCTAssertTrue(sut.isSignUpFormValid)
+        waitForExpectations(timeout: timeout)
         
-        // Test avec email invalide
-        sut.email = "invalid-email"
-        sut.password = "password123"
-        sut.username = "testuser"
-        XCTAssertFalse(sut.isSignUpFormValid)
-        
-        // Test avec password trop court
-        sut.email = "test@example.com"
-        sut.password = "123"
-        sut.username = "testuser"
-        XCTAssertFalse(sut.isSignUpFormValid)
-    }
-    
-    func testHasStoredCredentials() {
-        // Test l'état initial sans authentification et sans identifiants stockés
-        mockAuthService.configureForError(error: NSError(domain: "Test", code: 100, userInfo: nil))
-        mockKeychainService.shouldReturnNilOnRetrieve = true
-        sut.checkAuthenticationStatus()
-        
-        // Vérifier que hasStoredCredentials renvoie false si pas d'authentification et pas d'identifiants dans le keychain
-        XCTAssertFalse(sut.hasStoredCredentials)
-        
-        // Test avec authentification
-        mockAuthService.configureForSuccess()
-        sut.checkAuthenticationStatus()
-        XCTAssertTrue(sut.isAuthenticated)
-        
-        // Maintenant hasStoredCredentials devrait être false car isAuthenticated = true
-        // L'expression (isUserLoggedIn && !isAuthenticated) est fausse
-        XCTAssertFalse(sut.hasStoredCredentials)
-        
-        // Test avec identifiants dans le keychain mais sans authentification
-        mockAuthService.returnAuthenticationStatus = false
-        sut.isAuthenticated = false
-        mockKeychainService.shouldReturnNilOnRetrieve = false
-        mockKeychainService.preloadStorage(with: [
-            "userEmail": "stored@example.com"
-        ])
-        
-        // Vérifier que hasStoredCredentials renvoie true si des identifiants sont stockés
-        XCTAssertTrue(sut.hasStoredCredentials)
-        XCTAssertTrue(mockKeychainService.existsCalled)
-    }
-    
-    // MARK: - Tests des méthodes de stockage
-    
-    func testStoreCredentialsExplicit() async {
-        // Configuration initiale
-        let testEmail = "test@example.com"
-        let testPassword = "password123"
-        
-        // Exécution de la méthode signIn qui stocke les identifiants après une connexion réussie
-        sut.email = testEmail
-        sut.password = testPassword
-        mockAuthService.configureForSuccess()
-        
-        await sut.signIn()
-        
-        // Vérifications
-        XCTAssertTrue(mockKeychainService.deleteCalled, "La méthode delete devrait être appelée pour supprimer les anciennes entrées")
-        XCTAssertTrue(mockKeychainService.saveCalled, "La méthode save devrait être appelée pour sauvegarder les identifiants")
-        
-        // Vérifier que les bonnes valeurs sont passées aux méthodes du KeychainService
-        XCTAssertEqual(mockKeychainService.lastSavedData, testEmail, "Email devrait être sauvegardé")
-        XCTAssertEqual(mockKeychainService.lastSavedAccount, "userEmail", "La clé userEmail devrait être utilisée")
-        
-        // Vérifier que l'email et le mot de passe sont sauvegardés
-        XCTAssertEqual(mockKeychainService.saveCalledCount, 2, "Save devrait être appelé deux fois, une fois pour l'email et une fois pour le mot de passe")
-    }
-
-    func testLoadStoredCredentials() {
-        // Préparation du mock pour simuler des identifiants stockés
-        let storedEmail = "stored@example.com"
-        let storedPassword = "stored_password"
-        mockKeychainService.preloadStorage(with: [
-            "userEmail": storedEmail,
-            "userPassword": storedPassword
-        ])
-        
-        // Appel de la méthode à tester
-        sut.loadStoredCredentials()
-        
-        // Vérifications
-        XCTAssertTrue(mockKeychainService.existsCalled, "La méthode exists devrait être appelée")
-        XCTAssertTrue(mockKeychainService.retrieveCalled, "La méthode retrieve devrait être appelée")
-        XCTAssertEqual(sut.email, storedEmail, "L'email stocké devrait être chargé")
-        XCTAssertEqual(sut.password, storedPassword, "Le mot de passe stocké devrait être chargé")
-    }
-    
-    func testQuickSignIn() {
-        // Setup: utilisateur déjà connecté via Firebase
-        mockAuthService.configureForSuccess()
-        
-        // Act
-        sut.quickSignIn()
-        
-        // Assert
-        XCTAssertTrue(sut.isAuthenticated)
-    }
-    
-    func testSignOutWithoutClearingForm() {
-        // Arrange
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        sut.isAuthenticated = true
-        
-        // Act
-        sut.signOutWithoutClearingForm()
-        
-        // Assert
-        XCTAssertTrue(mockAuthService.signOutCalled)
-        XCTAssertFalse(sut.isAuthenticated)
-        // Vérifier que le formulaire n'a pas été vidé
-        XCTAssertEqual(sut.email, "test@example.com")
-        XCTAssertEqual(sut.password, "password123")
-    }
-    
-    func testSignOutWithClearingForm() {
-        // Arrange
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        sut.username = "testuser"
-        sut.isAuthenticated = true
-        
-        // Act
-        sut.signOut()
-        
-        // Assert
-        XCTAssertTrue(mockAuthService.signOutCalled)
-        XCTAssertFalse(sut.isAuthenticated)
-        // Vérifier que le formulaire a été vidé
-        XCTAssertEqual(sut.email, "")
-        XCTAssertEqual(sut.password, "")
-        XCTAssertEqual(sut.username, "")
-    }
-    
-    // MARK: - Tests de gestion d'erreurs spécifiques
-    func testSignUp_SpecificFirebaseErrors() async {
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        sut.username = "testuser"
-        
-        // Test erreur email déjà utilisé
-        mockAuthService.configureForError(error: NSError(
-            domain: "FIRAuthErrorDomain",
-            code: AuthErrorCode.emailAlreadyInUse.rawValue,
-            userInfo: [NSLocalizedDescriptionKey: "Email already in use"]
-        ))
-        
-        await sut.signUp()
-        
-        XCTAssertTrue(sut.showingError, "showingError should be true")
-        XCTAssertTrue(sut.errorMessage.contains("Un compte existe déjà"),
-                     "Expected error message to contain 'Un compte existe déjà', but got: '\(sut.errorMessage)'")
-        XCTAssertFalse(sut.isAuthenticated, "User should not be authenticated after error")
-        XCTAssertFalse(sut.isLoading, "Loading should be false after error")
-        
-        // Reset error state before next test
-        sut.dismissError()
-        
-        // Test erreur mot de passe faible
-        mockAuthService.configureForError(error: NSError(
-            domain: "FIRAuthErrorDomain",
-            code: AuthErrorCode.weakPassword.rawValue,
-            userInfo: [NSLocalizedDescriptionKey: "Weak password"]
-        ))
-        
-        await sut.signUp()
-        
-        XCTAssertTrue(sut.showingError, "showingError should be true")
-        XCTAssertTrue(sut.errorMessage.contains("trop faible"),
-                     "Expected error message to contain 'trop faible', but got: '\(sut.errorMessage)'")
-        XCTAssertFalse(sut.isAuthenticated, "User should not be authenticated after error")
-        XCTAssertFalse(sut.isLoading, "Loading should be false after error")
-    }
-
-    func testSignIn_SpecificFirebaseErrors() async {
-        // Définir l'erreur manuellement dans le ViewModel en accédant directement aux propriétés publiées
-        sut.errorMessage = "Test d'erreur manuel"
-        sut.showingError = true
-        
-        // Test erreur utilisateur non trouvé
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        mockAuthService.configureForError(error: NSError(
-            domain: "FIRAuthErrorDomain",
-            code: AuthErrorCode.userNotFound.rawValue,
-            userInfo: [NSLocalizedDescriptionKey: "Utilisateur non trouvé"]
-        ))
-        
-        await sut.signIn()
-        
-        XCTAssertTrue(sut.showingError, "showingError should be true")
-        XCTAssertTrue(sut.errorMessage.contains("Aucun compte trouvé"),
-                     "Expected error message to contain 'Aucun compte trouvé', but got: '\(sut.errorMessage)'")
-        XCTAssertFalse(sut.isAuthenticated, "User should not be authenticated after error")
-        XCTAssertFalse(sut.isLoading, "Loading should be false after error")
-        
-        // Reset error state before next test
-        sut.dismissError()
-        
-        // Spécifier l'erreur précise pour tester la gestion d'erreur Firebase spécifique
-        mockAuthService.configureForError(error: NSError(
-            domain: "FIRAuthErrorDomain",
-            code: AuthErrorCode.wrongPassword.rawValue,
-            userInfo: [NSLocalizedDescriptionKey: "Wrong password"]
-        ))
-        
-        // Test erreur mot de passe incorrect
-        await sut.signIn()
-        
-        XCTAssertTrue(sut.showingError, "showingError should be true")
-        XCTAssertTrue(sut.errorMessage.contains("Mot de passe incorrect"),
-                     "Expected error message to contain 'Mot de passe incorrect', but got: '\(sut.errorMessage)'")
-        XCTAssertFalse(sut.isAuthenticated, "User should not be authenticated after error")
-        XCTAssertFalse(sut.isLoading, "Loading should be false after error")
-    }
-    func testHandleAuthError_AllFirebaseErrorCodes() async {
-        let errorTestCases: [(Int, String)] = [
-            (17005, "désactivé"),           // userDisabled
-            (17006, "autorisée"),           // operationNotAllowed
-            (17008, "invalide"),            // invalidEmail
-            (17010, "tentatives"),          // tooManyRequests
-            (17004, "invalides")            // invalidCredential
-        ]
-        
-        for (errorCode, expectedText) in errorTestCases {
-            // Reset state
-            sut.dismissError()
-            sut.email = "test@example.com"
-            sut.password = "password123"
-            
-            mockAuthService.configureForError(error: NSError(
-                domain: "FIRAuthErrorDomain",
-                code: errorCode,
-                userInfo: [NSLocalizedDescriptionKey: "Firebase error"]
-            ))
-            
-            await sut.signIn()
-            
-            XCTAssertTrue(sut.showingError, "showingError should be true for error code \(errorCode)")
-            XCTAssertTrue(sut.errorMessage.contains(expectedText),
-                         "Expected error message to contain '\(expectedText)' for code \(errorCode), but got: '\(sut.errorMessage)'")
+        switch result {
+        case .success(let value):
+            return value
+        case .failure(let error):
+            throw error
+        case .none:
+            throw NSError(domain: "AuthenticationViewModelTests", code: 0, userInfo: [NSLocalizedDescriptionKey: "Publisher did not produce any value"])
         }
     }
-
-    func testHandleAuthError_NonFirebaseError() async {
-        sut.email = "test@example.com"
-        sut.password = "password123"
+    
+    // MARK: - Initialization Tests
+    
+    func testInit_WhenUserIsAuthenticated_ShouldSetUserIsLoggedInToTrue() {
+        // Given
+        mockAuthService.isUserAuthenticatedReturnValue = true
         
-        // Erreur générique non-Firebase
-        let customError = NSError(
-            domain: "CustomErrorDomain",
-            code: 500,
-            userInfo: [NSLocalizedDescriptionKey: "Custom error message"]
+        // When
+        viewModel = AuthenticationViewModel(
+            authService: mockAuthService,
+            keychainService: mockKeychainService,
+            storageService: mockStorageService
         )
-        mockAuthService.configureForError(error: customError)
         
-        await sut.signIn()
-        
-        XCTAssertTrue(sut.showingError)
-        XCTAssertEqual(sut.errorMessage, "Custom error message")
-    }
-
-    // MARK: - Tests des propriétés d'image de profil
-    
-    func testProfileImageHandling() {
-        let testImage = UIImage(systemName: "person.circle") 
-        
-        // Test de définition et récupération de l'image
-        sut.profileImage = testImage
-        XCTAssertNotNil(sut.profileImage)
-        
-        // Test du statut de téléchargement
-        XCTAssertFalse(sut.isUploadingImage)
-        sut.isUploadingImage = true
-        XCTAssertTrue(sut.isUploadingImage)
+        // Then
+        XCTAssertTrue(viewModel.userIsLoggedIn)
+        XCTAssertTrue(mockAuthService.isUserAuthenticatedCalled)
     }
     
-    // MARK: - Tests de validation des formulaires
-    
-    func testEmailValidation() {
-        // Test d'emails invalides
-        let invalidEmails = [
-            "",                     // Vide
-            "plainaddress",         // Sans @
-            "@missingusername.com", // Manque nom d'utilisateur
-            "user@.com",            // Domaine incomplet
-            "user@domain",          // Sans TLD
-            "user@domain..com"      // Double point
-        ]
-        
-        for email in invalidEmails {
-            sut.email = email
-            XCTAssertFalse(mockAuthService.isValidEmail(email),
-                          "Email '\(email)' ne devrait pas être valide")
-            XCTAssertFalse(sut.isFormValid, 
-                          "La propriété isFormValid devrait être false pour l'email '\(email)'")
-        }
-        
-        // Test d'emails valides
-        let validEmails = [
-            "email@example.com",
-            "firstname.lastname@domain.com",
-            "email+tag@example.com",
-            "firstname-lastname@domain.co.jp",
-            "1234567890@domain.com"
-        ]
-        
-        for email in validEmails {
-            sut.email = email
-            XCTAssertTrue(mockAuthService.isValidEmail(email),
-                         "Email '\(email)' devrait être valide")
-            // Nous ne pouvons pas tester isEmailValid directement car c'est une propriété privée
-            // À la place, nous vérifions que l'email est accepté par le mock
-        }
-    }
-    
-    func testPasswordValidation() {
-        // Test de mots de passe invalides
-        let invalidPasswords = [
-            "",        // Vide
-            "123",     // Trop court
-            "12345"    // Trop court
-        ]
-        
-        for password in invalidPasswords {
-            sut.password = password
-            XCTAssertFalse(mockAuthService.isValidPassword(password),
-                          "Mot de passe '\(password)' ne devrait pas être valide")
-            // Nous ne pouvons pas tester isPasswordValid directement car c'est une propriété privée
-            // À la place, nous vérifions que le mot de passe est rejeté par le mock
-        }
-        
-        // Test de mots de passe valides
-        let validPasswords = [
-            "123456",
-            "password123",
-            "A_Very_Long_P@ssw0rd"
-        ]
-        
-        for password in validPasswords {
-            sut.password = password
-            XCTAssertTrue(mockAuthService.isValidPassword(password),
-                         "Mot de passe '\(password)' devrait être valide")
-            // Nous ne pouvons pas tester isPasswordValid directement car c'est une propriété privée
-            // À la place, nous vérifions que le mot de passe est accepté par le mock
-        }
-    }
-    
-    func testUsernameValidation() {
-        // Le nom d'utilisateur ne devrait pas être vide
-        sut.username = ""
-        // Nous ne pouvons pas tester isUsernameValid directement car c'est une propriété privée
-        // À la place, nous vérifions que le formulaire n'est pas valide
-        XCTAssertFalse(sut.isSignUpFormValid, "Un formulaire avec nom d'utilisateur vide ne devrait pas être valide")
-        
-        // Test de noms d'utilisateur valides
-        let validUsernames = [
-            "user",
-            "user123",
-            "user_name",
-            "UserName"
-        ]
-        
-        for username in validUsernames {
-            sut.username = username
-            sut.email = "valid@example.com"
-            sut.password = "password123"
-            XCTAssertTrue(sut.isSignUpFormValid, "Le formulaire avec nom d'utilisateur '\(username)' devrait être valide")
-        }
-    }
-    
-    // MARK: - Tests d'état et de concurrence
-    
-    func testLoading() async {
-        sut.isLoading = true
-        XCTAssertTrue(sut.isLoading)
-        
-        sut.isLoading = false
-        XCTAssertFalse(sut.isLoading)
-    }
-    
-    func testErrorHandlingDirectly() {
-        // Test direct du mécanisme d'erreur en accédant aux propriétés publiées
-        XCTAssertFalse(sut.showingError, "showingError doit être false initialement")
-        
-        // Définir l'erreur manuellement dans le ViewModel en accédant directement aux propriétés publiées
-        sut.errorMessage = "Test d'erreur manuel"
-        sut.showingError = true
-        
-        XCTAssertTrue(sut.showingError, "showingError doit être true après avoir défini une erreur")
-        XCTAssertEqual(sut.errorMessage, "Test d'erreur manuel", "Le message d'erreur ne correspond pas")
-        
-        // Tester la réinitialisation de l'erreur
-        sut.dismissError()
-        
-        XCTAssertFalse(sut.showingError, "showingError doit être false après dismissError")
-        XCTAssertEqual(sut.errorMessage, "", "Le message d'erreur doit être réinitialisé")
-    }
-    
-    func testCompleteSignInSuccess() async {
-        // Préparer le mock pour un succès
-        mockAuthService.configureForSuccess()
-        
-        // Configurer les données d'entrée
+    func testInit_WhenUserIsNotAuthenticated_ShouldLoadStoredCredentials() {
+        // Given
+        mockAuthService.isUserAuthenticatedReturnValue = false
         let testEmail = "test@example.com"
         let testPassword = "password123"
-        sut.email = testEmail
-        sut.password = testPassword
         
-        // Exécuter le sign in
-        await sut.signIn()
+        mockKeychainService.retrieveResults = [
+            "userEmail": testEmail,
+            "userPassword": testPassword
+        ]
         
-        // Vérifications
-        XCTAssertTrue(mockAuthService.signInCalled, "La méthode signIn du service aurait dû être appelée")
-        XCTAssertEqual(mockAuthService.lastEmailUsed, testEmail)
-        XCTAssertEqual(mockAuthService.lastPasswordUsed, testPassword)
+        // When
+        viewModel = AuthenticationViewModel(
+            authService: mockAuthService,
+            keychainService: mockKeychainService,
+            storageService: mockStorageService
+        )
         
-        // Vérifier que l'auth est réussie
-        XCTAssertTrue(sut.isAuthenticated)
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertFalse(sut.showingError)
-        
-        // Vérifier que les identifiants sont sauvegardés dans le keychain
-        XCTAssertTrue(mockKeychainService.saveCalled)
-        XCTAssertEqual(mockKeychainService.saveCalledCount, 2) // email et password
+        // Then
+        XCTAssertFalse(viewModel.userIsLoggedIn)
+        XCTAssertEqual(viewModel.email, testEmail)
+        XCTAssertEqual(viewModel.password, testPassword)
+        XCTAssertTrue(mockAuthService.isUserAuthenticatedCalled)
     }
     
-    func testCompleteSignUpSuccess() async {
-        // Préparer le mock pour un succès
-        mockAuthService.configureForSuccess()
+    // MARK: - Sign In Tests
+    
+    @MainActor
+    func testSignIn_WhenSuccessful_ShouldSetUserLoggedInAndStoreCredentials() async {
+        // Given
+        viewModel.email = "success@example.com"
+        viewModel.password = "password123"
+        mockAuthService.shouldThrowError = false
         
-        // Configurer les données d'entrée
-        let testEmail = "newuser@example.com"
-        let testPassword = "password123"
-        let testUsername = "newuser"
-        sut.email = testEmail
-        sut.password = testPassword
-        sut.username = testUsername
+        // When
+        await viewModel.signIn()
         
-        // Exécuter le sign up
-        await sut.signUp()
-        
-        // Vérifications
-        XCTAssertTrue(mockAuthService.signUpCalled, "La méthode signUp du service aurait dû être appelée")
-        XCTAssertEqual(mockAuthService.lastEmailUsed, testEmail)
-        XCTAssertEqual(mockAuthService.lastPasswordUsed, testPassword)
-        // Pas de vérification directe du nom d'utilisateur car MockAuthenticationService ne trace pas les noms d'utilisateur
-        XCTAssertTrue(sut.isAuthenticated)
-        XCTAssertFalse(sut.isLoading)
-        XCTAssertFalse(sut.showingError)
-        
-        // Vérifier que les identifiants sont sauvegardés dans le keychain
-        XCTAssertTrue(mockKeychainService.saveCalled)
-        XCTAssertEqual(mockKeychainService.saveCalledCount, 2) // email et password
+        // Then
+        XCTAssertTrue(viewModel.userIsLoggedIn)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertTrue(mockAuthService.signInCalled)
+        XCTAssertEqual(mockKeychainService.saveCallCount, 2) // email et password
     }
     
-    // MARK: - Tests de concurrence et d'état
-    
-    func testConcurrentSignIn() async {
-        sut.email = "test@example.com"
-        sut.password = "password123"
-        mockAuthService.configureForSuccess()
+    @MainActor
+    func testSignIn_WhenFails_ShouldSetErrorMessageAndNotLogIn() async {
+        // Given
+        viewModel.email = "fail@example.com"
+        viewModel.password = "wrongpassword"
+        mockAuthService.shouldThrowError = true
+        mockAuthService.mockError = NSError(domain: "Auth", code: 401, userInfo: [NSLocalizedDescriptionKey: "Invalid credentials"])
         
-        // Lancer plusieurs signIn en parallèle
-        async let signIn1 = sut.signIn()
-        async let signIn2 = sut.signIn()
+        // When
+        await viewModel.signIn()
         
-        await signIn1
-        await signIn2
-        
-        // Vérifier que l'état final est cohérent
-        XCTAssertTrue(sut.isAuthenticated)
-        XCTAssertFalse(sut.isLoading)
+        // Then
+        XCTAssertFalse(viewModel.userIsLoggedIn)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertEqual(viewModel.errorMessage, "Invalid credentials")
+        XCTAssertTrue(mockAuthService.signInCalled)
+        XCTAssertEqual(mockKeychainService.saveCallCount, 0) // aucune sauvegarde
     }
     
-    // MARK: - Tests d'intégration
+    @MainActor
+    func testSignIn_ShouldUpdateLoadingState() async {
+        // Given
+        viewModel.email = "test@example.com"
+        viewModel.password = "password123"
+        
+        // Create an expectation for the loading state
+        let expectation = expectation(description: "Loading state should change")
+        var loadingStates: [Bool] = []
+        
+        // When
+        viewModel.$isLoading
+            .sink { isLoading in
+                loadingStates.append(isLoading)
+                if loadingStates.count >= 3 { // initial + loading + finished
+                    expectation.fulfill()
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Start the sign in process
+        Task {
+            await viewModel.signIn()
+        }
+        
+        // Then
+        await fulfillment(of: [expectation], timeout: 1.0)
+        XCTAssertEqual(loadingStates[0], false) // Initial state
+        XCTAssertEqual(loadingStates[1], true)  // During sign in
+        XCTAssertEqual(loadingStates[2], false) // After sign in
+    }
     
-    func testCompleteAuthenticationFlow() async {
-        // 1. Inscription
-        sut.email = "newuser@example.com"
-        sut.password = "newpassword123"
-        sut.username = "newuser"
-        mockAuthService.configureForSuccess()
+    // MARK: - Sign Up Tests
+    
+    @MainActor
+    func testSignUp_WhenUsernameIsEmpty_ShouldSetErrorMessage() async {
+        // Given
+        viewModel.email = "test@example.com"
+        viewModel.password = "password123"
+        viewModel.username = "" // Empty username
         
-        await sut.signUp()
+        // When
+        await viewModel.signUp()
         
-        XCTAssertTrue(sut.isAuthenticated)
+        // Then
+        XCTAssertFalse(viewModel.userIsLoggedIn)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertEqual(viewModel.errorMessage, "Le nom d'utilisateur est requis")
+        XCTAssertFalse(mockAuthService.signUpCalled)
+    }
+    
+    @MainActor
+    func testSignUp_WhenSuccessful_ShouldCreateUserAndUpdateProfile() async {
+        // Given
+        viewModel.email = "newuser@example.com"
+        viewModel.password = "password123"
+        viewModel.username = "New User"
+        mockAuthService.shouldThrowError = false
+        let mockUser = MockUser(uid: "test-uid", email: "newuser@example.com", displayName: "New User")
+        mockAuthService.currentUserMock = mockUser
+        
+        // When
+        await viewModel.signUp()
+        
+        // Then
+        XCTAssertTrue(viewModel.userIsLoggedIn)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.errorMessage)
         XCTAssertTrue(mockAuthService.signUpCalled)
+        XCTAssertTrue(mockAuthService.updateUserProfileCalled)
+        XCTAssertEqual(mockKeychainService.saveCallCount, 2) // email et password
+    }
+    
+    @MainActor
+    func testSignUp_WithProfileImage_ShouldUploadImageAndUpdateProfile() async {
+        // Given
+        viewModel.email = "newuser@example.com"
+        viewModel.password = "password123"
+        viewModel.username = "New User"
+        viewModel.profileImage = UIImage(systemName: "person.circle") // Simuler une image
+        mockAuthService.shouldThrowError = false
+        let mockUser = MockUser(uid: "test-uid", email: "newuser@example.com", displayName: "New User")
+        mockAuthService.currentUserMock = mockUser
+        mockStorageService.mockDownloadURLString = "https://example.com/profile.jpg"
         
-        // 2. Déconnexion
-        sut.signOut()
+        // When
+        await viewModel.signUp()
         
-        XCTAssertFalse(sut.isAuthenticated)
+        // Then
+        XCTAssertTrue(viewModel.userIsLoggedIn)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertTrue(mockAuthService.signUpCalled)
+        XCTAssertTrue(mockAuthService.updateUserProfileCalled)
+        XCTAssertTrue(mockStorageService.uploadImageCalled)
+        XCTAssertEqual(mockKeychainService.saveCallCount, 2) // email et password
+    }
+    
+    @MainActor
+    func testSignUp_WhenFails_ShouldSetErrorMessageAndNotLogIn() async {
+        // Given
+        viewModel.email = "invalid@example.com"
+        viewModel.password = "weak"
+        viewModel.username = "Invalid User"
+        mockAuthService.shouldThrowError = true
+        mockAuthService.mockError = NSError(domain: "Auth", code: 400, userInfo: [NSLocalizedDescriptionKey: "Weak password"])
+        
+        // When
+        await viewModel.signUp()
+        
+        // Then
+        XCTAssertFalse(viewModel.userIsLoggedIn)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertEqual(viewModel.errorMessage, "Weak password")
+        XCTAssertTrue(mockAuthService.signUpCalled)
+        XCTAssertFalse(mockAuthService.updateUserProfileCalled)
+        XCTAssertEqual(mockKeychainService.saveCallCount, 0) // aucune sauvegarde
+    }
+    
+    // MARK: - Sign Out Tests
+    
+    @MainActor
+    func testSignOut_WhenSuccessful_ShouldClearCredentialsAndSetUserLoggedOut() async {
+        // Given
+        let testEmail = "user@example.com"
+        let testPassword = "password123"
+        viewModel.email = testEmail
+        viewModel.password = testPassword
+        viewModel.userIsLoggedIn = true
+        mockAuthService.shouldThrowError = false
+        
+        // Simule que l'email et le mot de passe sont déjà dans le Keychain
+        // pour que la suppression puisse fonctionner
+        try? mockKeychainService.save(testEmail, for: "userEmail")
+        try? mockKeychainService.save(testPassword, for: "userPassword")
+        // Réinitialiser le compteur après la sauvegarde
+        mockKeychainService.deleteCallCount = 0
+        
+        // When
+        await viewModel.signOut()
+        
+        // Then
+        XCTAssertFalse(viewModel.userIsLoggedIn)
+        XCTAssertEqual(viewModel.email, "")
+        XCTAssertEqual(viewModel.password, "")
         XCTAssertTrue(mockAuthService.signOutCalled)
+        XCTAssertEqual(mockKeychainService.deleteCallCount, 2) // email et password
+    }
+    
+    @MainActor
+    func testSignOut_WhenFails_ShouldSetErrorMessage() async {
+        // Given
+        viewModel.userIsLoggedIn = true
+        mockAuthService.shouldThrowError = true
+        mockAuthService.mockError = NSError(domain: "Auth", code: 500, userInfo: [NSLocalizedDescriptionKey: "Network error"])
         
-        // 3. Reconnexion
-        mockAuthService.signInCalled = false // Reset
-        await sut.signIn()
+        // When
+        await viewModel.signOut()
         
-        XCTAssertTrue(sut.isAuthenticated)
+        // Then
+        XCTAssertEqual(viewModel.errorMessage, "Network error")
+        XCTAssertTrue(mockAuthService.signOutCalled)
+    }
+    
+    @MainActor
+    func testSignOutWithoutClearingForm_ShouldKeepFormData() async {
+        // Given
+        let testEmail = "keep@example.com"
+        let testPassword = "keeppassword"
+        viewModel.email = testEmail
+        viewModel.password = testPassword
+        viewModel.userIsLoggedIn = true
+        
+        // Simule que l'email et le mot de passe sont déjà dans le Keychain
+        // pour que la suppression puisse fonctionner
+        try? mockKeychainService.save(testEmail, for: "userEmail")
+        try? mockKeychainService.save(testPassword, for: "userPassword")
+        // Réinitialiser le compteur après la sauvegarde
+        mockKeychainService.deleteCallCount = 0
+        
+        // When
+        await viewModel.signOutWithoutClearingForm()
+        
+        // Then
+        XCTAssertFalse(viewModel.userIsLoggedIn)
+        XCTAssertEqual(viewModel.email, testEmail) // Email conservé
+        XCTAssertEqual(viewModel.password, testPassword) // Mot de passe conservé
+        XCTAssertTrue(mockAuthService.signOutCalled)
+        XCTAssertEqual(mockKeychainService.deleteCallCount, 2) // email et password supprimés du keychain
+    }
+    
+    // MARK: - Credential Storage Tests
+    
+    func testStoreCredentialsExplicit_WhenSuccessful_ShouldSaveToKeychain() {
+        // Given
+        let testEmail = "store@example.com"
+        let testPassword = "storepassword"
+        
+        // When
+        viewModel.storeCredentialsExplicit(email: testEmail, password: testPassword)
+        
+        // Then
+        XCTAssertEqual(mockKeychainService.saveCallCount, 2) // email et password
+        XCTAssertEqual(mockKeychainService.savedValues["userEmail"], "store@example.com")
+        XCTAssertEqual(mockKeychainService.savedValues["userPassword"], testPassword)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+    
+    func testStoreCredentialsExplicit_WhenFails_ShouldSetErrorMessage() {
+        // Given
+        let testEmail = "store@example.com"
+        let testPassword = "storepassword"
+        mockKeychainService.shouldThrowOnSave = true
+        mockKeychainService.saveError = KeychainError.creationFailed(1)
+        
+        // When
+        viewModel.storeCredentialsExplicit(email: testEmail, password: testPassword)
+        
+        // Then
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertTrue(viewModel.errorMessage!.contains("Could not save credentials"))
+    }
+    
+    func testLoadStoredCredentials_WhenCredentialsExist_ShouldPopulateEmailAndPassword() {
+        // Given
+        let testEmail = "stored@example.com"
+        let testPassword = "storedpassword"
+        mockKeychainService.retrieveResults = [
+            "userEmail": testEmail,
+            "userPassword": testPassword
+        ]
+        
+        // Réinitialiser le compteur d'appels avant le test pour ignorer ceux de l'initialisation
+        mockKeychainService.retrieveCallCount = 0
+        
+        // When
+        viewModel.loadStoredCredentials()
+        
+        // Then
+        XCTAssertEqual(viewModel.email, "stored@example.com")
+        XCTAssertEqual(viewModel.password, "storedpassword")
+        XCTAssertEqual(mockKeychainService.retrieveCallCount, 2) // email et password
+    }
+    
+    func testLoadStoredCredentials_WhenCredentialsDontExist_ShouldClearEmailAndPassword() {
+        // Given
+        viewModel.email = "oldEmail@example.com"
+        viewModel.password = "oldPassword"
+        mockKeychainService.shouldThrowOnRetrieve = true
+        
+        // When
+        viewModel.loadStoredCredentials()
+        
+        // Then
+        XCTAssertEqual(viewModel.email, "")
+        XCTAssertEqual(viewModel.password, "")
+    }
+    
+    // MARK: - Quick Sign In Tests
+    
+    @MainActor
+    func testQuickSignIn_WhenCredentialsExist_ShouldCallSignIn() async {
+        // Given
+        viewModel.email = "quick@example.com"
+        viewModel.password = "quickpassword"
+        
+        // When
+        await viewModel.quickSignIn()
+        
+        // Then
         XCTAssertTrue(mockAuthService.signInCalled)
     }
     
-    // MARK: - Tests des cas limites
-    
-    func testAuthenticationWithEmptyCredentials() async {
-        sut.email = ""
-        sut.password = ""
+    @MainActor
+    func testQuickSignIn_WhenCredentialsAreEmpty_ShouldNotCallSignIn() async {
+        // Given
+        viewModel.email = ""
+        viewModel.password = "quickpassword"
         
-        await sut.signIn()
+        // When
+        await viewModel.quickSignIn()
         
-        // Le ViewModel ne devrait pas appeler le service avec des identifiants vides
-        XCTAssertFalse(sut.isFormValid)
+        // Then
+        XCTAssertFalse(mockAuthService.signInCalled)
+        
+        // Test with empty password
+        viewModel.email = "quick@example.com"
+        viewModel.password = ""
+        
+        await viewModel.quickSignIn()
+        
+        XCTAssertFalse(mockAuthService.signInCalled)
     }
     
-    func testErrorHandling_NonFirebaseError() async {
-        sut.email = "test@example.com"
-        sut.password = "password123"
+    // MARK: - Error Handling Tests
+    
+    func testDismissError_ShouldClearErrorMessage() {
+        // Given
+        viewModel.errorMessage = "Test error message"
         
-        // Erreur générique non-Firebase
-        let customError = NSError(
-            domain: "NetworkError",
-            code: 500,
-            userInfo: [NSLocalizedDescriptionKey: "Network timeout"]
-        )
-        mockAuthService.configureForError(error: customError)
+        // When
+        viewModel.dismissError()
         
-        await sut.signIn()
-        
-        XCTAssertTrue(sut.showingError)
-        XCTAssertEqual(sut.errorMessage, "Network timeout")
+        // Then
+        XCTAssertNil(viewModel.errorMessage)
     }
 }

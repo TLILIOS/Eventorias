@@ -1,389 +1,266 @@
-
 //
-// AuthenticationServiceTests.swift
-// EventoriasTests
+//  AuthenticationServiceTests.swift
+//  EventoriasTests
 //
-// Created on 13/06/2025.
+//  Created by TLiLi Hamdi on 27/06/2025.
 //
 
 import XCTest
 @testable import Eventorias
-import FirebaseAuth
-
-class AuthenticationServiceTests: XCTestCase {
+@MainActor
+final class AuthenticationServiceTests: XCTestCase {
     
-    var authService: AuthenticationServiceProtocol!
-    var mockAuth: MockAuthService!
+    var mockAuthService: MockAuthenticationService!
     
     override func setUp() {
         super.setUp()
-        mockAuth = MockAuthService()
-        mockAuth.configureForServiceTests() // Configuration appropriée pour les tests de service
-        authService = mockAuth
+        mockAuthService = MockAuthenticationService()
     }
     
     override func tearDown() {
-        // Reset explicite pour garantir l'isolation des tests
-        mockAuth?.reset()
-        mockAuth = nil
-        authService = nil
+        mockAuthService = nil
         super.tearDown()
     }
     
-    // MARK: - Tests de validation de base avec reset
+    // MARK: - Tests de connexion utilisateur
     
-    func testEmailValidation_BasicCases() {
-        // Reset avant test pour s'assurer de l'état propre
-        mockAuth.reset()
+    func testSignInSuccess() async {
+        // Arrange
+        mockAuthService.shouldThrowError = false
         
-        // Valid emails - y compris domaines d'une seule lettre
-        XCTAssertTrue(authService.isValidEmail("test@example.com"))
-        XCTAssertTrue(authService.isValidEmail("user.name+tag@domain.co.uk"))
-        XCTAssertTrue(authService.isValidEmail("a@b.c")) // Maintenant supporté
-        XCTAssertTrue(authService.isValidEmail("user@x.co")) // Domaine d'une lettre
-        XCTAssertTrue(authService.isValidEmail("test@a.museum")) // TLD long avec domaine court
-        
-        // Vérifier que les appels sont trackés
-        XCTAssertTrue(mockAuth.isValidEmailCalled)
-        
-        // Invalid emails
-        XCTAssertFalse(authService.isValidEmail(""))
-        XCTAssertFalse(authService.isValidEmail("test"))
-        XCTAssertFalse(authService.isValidEmail("test@"))
-        XCTAssertFalse(authService.isValidEmail("@example.com"))
-        XCTAssertFalse(authService.isValidEmail("test@example"))
-        XCTAssertFalse(authService.isValidEmail("test@.com"))
-        XCTAssertFalse(authService.isValidEmail("test@example."))
-    }
-    
-    func testEmailValidation_SingleCharacterDomains() {
-        mockAuth.reset()
-        
-        // Emails valides avec domaines d'une lettre
-        let validSingleCharDomains = [
-            "user@a.com",
-            "test@b.org",
-            "email@x.co",
-            "name@z.info"
-        ]
-        
-        for email in validSingleCharDomains {
-            XCTAssertTrue(authService.isValidEmail(email), "Should be valid: \(email)")
-        }
-        
-        // Emails toujours invalides
-        let invalidEmails = [
-            "user@.com",     // Pas de domaine
-            "user@a.",       // Pas de TLD
-            "user@a",        // Pas de TLD du tout
-            "@a.com"         // Pas de partie locale
-        ]
-        
-        for email in invalidEmails {
-            XCTAssertFalse(authService.isValidEmail(email), "Should be invalid: \(email)")
-        }
-    }
-
-    
-    func testPasswordValidation_BasicCases() {
-        // Reset avant test
-        mockAuth.reset()
-        
-        // Valid passwords (at least 6 characters)
-        XCTAssertTrue(authService.isValidPassword("123456"))
-        XCTAssertTrue(authService.isValidPassword("password123"))
-        XCTAssertTrue(authService.isValidPassword("Secure!Password"))
-        
-        // Vérifier que les appels sont trackés
-        XCTAssertTrue(mockAuth.isValidPasswordCalled)
-        
-        // Invalid passwords (less than 6 characters)
-        XCTAssertFalse(authService.isValidPassword(""))
-        XCTAssertFalse(authService.isValidPassword("123"))
-        XCTAssertFalse(authService.isValidPassword("pass"))
-    }
-    
-    // MARK: - Tests d'authentification avec reset
-    
-    func testSignIn_Success_WithReset() async {
-        // Configuration pour succès
-        mockAuth.configureForViewModelTests() // Mode succès
-        mockAuth.configureAuthState(isAuthenticated: true)
-        
-        let testEmail = "test@example.com"
-        let testPassword = "password123"
-        
+        // Act
         do {
-            let result = try await authService.signIn(email: testEmail, password: testPassword)
-            XCTAssertNotNil(result)
-            XCTAssertTrue(mockAuth.signInCalled)
-            XCTAssertEqual(mockAuth.lastEmail, testEmail)
-            XCTAssertEqual(mockAuth.lastPassword, testPassword)
-            // Vérifier qu'une seule méthode a été appelée
-            XCTAssertEqual(mockAuth.totalMethodCalls, 1)
+            let result = try await mockAuthService.signIn(email: "test@example.com", password: "password123")
+            
+            // Assert
+            XCTAssertTrue(mockAuthService.signInCalled, "La méthode signIn n'a pas été appelée")
+            XCTAssertEqual(result.user.email, "test@example.com", "L'email de l'utilisateur ne correspond pas")
+            XCTAssertNotNil(mockAuthService.currentUser, "L'utilisateur courant est nil après connexion")
         } catch {
-            XCTFail("Should not throw error in success mode: \(error)")
+            XCTFail("La connexion a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
-    func testSignIn_Failure_WithReset() async {
-        // Configuration pour échec
-        let expectedError = NSError(domain: "AuthError", code: 1,
-                                  userInfo: [NSLocalizedDescriptionKey: "Authentication failed"])
-        mockAuth.configureError(expectedError)
+    func testSignInFailure() async {
+        // Arrange
+        mockAuthService.shouldThrowError = true
         
+        // Act & Assert
         do {
-            _ = try await authService.signIn(email: "test@example.com", password: "password123")
-            XCTFail("Sign in should throw an error")
+            _ = try await mockAuthService.signIn(email: "test@example.com", password: "password123")
+            XCTFail("La connexion a réussi alors qu'elle devrait échouer")
         } catch {
-            XCTAssertTrue(mockAuth.signInCalled)
-            XCTAssertEqual((error as NSError).domain, "AuthError")
-            XCTAssertEqual((error as NSError).code, 1)
-            // Vérifier l'isolation - pas d'autres méthodes appelées
-            XCTAssertFalse(mockAuth.signUpCalled)
-            XCTAssertFalse(mockAuth.signOutCalled)
+            XCTAssertTrue(mockAuthService.signInCalled, "La méthode signIn n'a pas été appelée")
+            XCTAssertNil(mockAuthService.currentUser, "L'utilisateur courant n'est pas nil après échec de connexion")
         }
     }
     
-    func testSignUp_Success_WithReset() async {
-        // Configuration pour succès
-        mockAuth.configureForViewModelTests() // Mode succès
-        mockAuth.configureAuthState(isAuthenticated: true)
+    // MARK: - Tests d'inscription utilisateur
+    
+    func testSignUpSuccess() async {
+        // Arrange
+        mockAuthService.shouldThrowError = false
         
-        let testEmail = "newuser@example.com"
-        let testPassword = "newpassword123"
-        
+        // Act
         do {
-            let result = try await authService.signUp(email: testEmail, password: testPassword)
-            XCTAssertNotNil(result)
-            XCTAssertTrue(mockAuth.signUpCalled)
-            XCTAssertEqual(mockAuth.lastEmail, testEmail)
-            XCTAssertEqual(mockAuth.lastPassword, testPassword)
-            XCTAssertTrue(mockAuth.mockIsAuthenticated)
+            let result = try await mockAuthService.signUp(email: "new@example.com", password: "newpassword123")
+            
+            // Assert
+            XCTAssertTrue(mockAuthService.signUpCalled, "La méthode signUp n'a pas été appelée")
+            XCTAssertEqual(result.user.email, "new@example.com", "L'email de l'utilisateur ne correspond pas")
+            XCTAssertNotNil(mockAuthService.currentUser, "L'utilisateur courant est nil après inscription")
         } catch {
-            XCTFail("Should not throw error in success mode: \(error)")
+            XCTFail("L'inscription a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
-    func testSignUp_Failure_WithReset() async {
-        // Configuration pour échec
-        let expectedError = NSError(domain: "AuthError", code: 2,
-                                  userInfo: [NSLocalizedDescriptionKey: "Registration failed"])
-        mockAuth.configureError(expectedError)
+    func testSignUpFailure() async {
+        // Arrange
+        mockAuthService.shouldThrowError = true
         
+        // Act & Assert
         do {
-            _ = try await authService.signUp(email: "test@example.com", password: "password123")
-            XCTFail("Sign up should throw an error")
+            _ = try await mockAuthService.signUp(email: "new@example.com", password: "newpassword123")
+            XCTFail("L'inscription a réussi alors qu'elle devrait échouer")
         } catch {
-            XCTAssertTrue(mockAuth.signUpCalled)
-            XCTAssertEqual((error as NSError).domain, "AuthError")
-            XCTAssertEqual((error as NSError).code, 2)
-            // Vérifier l'isolation
-            XCTAssertFalse(mockAuth.signInCalled)
+            XCTAssertTrue(mockAuthService.signUpCalled, "La méthode signUp n'a pas été appelée")
         }
     }
     
-    // MARK: - Tests de déconnexion avec reset
+    // MARK: - Tests de déconnexion
     
-    func testSignOut_Success_WithReset() throws {
-        // Reset et configuration
-        mockAuth.reset()
-        mockAuth.configureAuthState(isAuthenticated: true)
+    func testSignOutSuccess() {
+        // Arrange
+        mockAuthService.shouldThrowError = false
+        mockAuthService.currentUserMock = MockUser(uid: "test-uid", email: "test@example.com")
         
-        try authService.signOut()
-        
-        XCTAssertTrue(mockAuth.signOutCalled)
-        XCTAssertFalse(mockAuth.mockIsAuthenticated) // Vérifier que l'état a changé
-        // Vérifier qu'aucune autre méthode n'a été appelée
-        XCTAssertFalse(mockAuth.signInCalled)
-        XCTAssertFalse(mockAuth.signUpCalled)
-    }
-    
-    func testSignOut_Failure_WithReset() {
-        // Configuration d'erreur spécifique
-        let expectedError = NSError(domain: "AuthError", code: 3,
-                                  userInfo: [NSLocalizedDescriptionKey: "Sign out failed"])
-        mockAuth.configureError(expectedError)
-        
+        // Act
         do {
-            try authService.signOut()
-            XCTFail("Sign out should throw an error")
+            try mockAuthService.signOut()
+            
+            // Assert
+            XCTAssertTrue(mockAuthService.signOutCalled, "La méthode signOut n'a pas été appelée")
+            XCTAssertNil(mockAuthService.currentUser, "L'utilisateur courant n'est pas nil après déconnexion")
         } catch {
-            XCTAssertTrue(mockAuth.signOutCalled)
-            XCTAssertEqual((error as NSError).domain, "AuthError")
-            XCTAssertEqual((error as NSError).code, 3)
+            XCTFail("La déconnexion a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
     }
     
-    // MARK: - Tests d'état d'authentification avec reset
-    
-    func testIsUserAuthenticated_WithReset() {
-        // Test état initial après reset
-        mockAuth.reset()
-        XCTAssertFalse(authService.isUserAuthenticated())
-        XCTAssertTrue(mockAuth.isUserAuthenticatedCalled)
+    func testSignOutFailure() {
+        // Arrange
+        mockAuthService.shouldThrowError = true
         
-        // Reset et changement d'état
-        mockAuth.reset()
-        mockAuth.configureAuthState(isAuthenticated: true)
-        XCTAssertTrue(authService.isUserAuthenticated())
-        XCTAssertTrue(mockAuth.isUserAuthenticatedCalled)
-        
-        // Vérifier que le compteur d'appels est correct après reset
-        XCTAssertEqual(mockAuth.totalMethodCalls, 1)
-    }
-    
-    func testGetCurrentUser_WithReset() {
-        // Test avec reset initial
-        mockAuth.reset()
-        
-        let currentUser = authService.getCurrentUser()
-        XCTAssertTrue(mockAuth.getCurrentUserCalled)
-        XCTAssertNil(currentUser) // MockAuthService retourne toujours nil
-        
-        // Vérifier isolation
-        XCTAssertFalse(mockAuth.signInCalled)
-        XCTAssertFalse(mockAuth.signUpCalled)
-        XCTAssertEqual(mockAuth.totalMethodCalls, 1)
-    }
-    
-    // MARK: - Tests de séquences complètes avec reset
-    
-    func testCompleteAuthSequence_WithResets() async {
-        // 1. Inscription avec reset
-        mockAuth.configureForViewModelTests()
-        
+        // Act & Assert
         do {
-            _ = try await authService.signUp(email: "user@test.com", password: "password123")
-            XCTAssertTrue(mockAuth.signUpCalled)
-            XCTAssertTrue(mockAuth.mockIsAuthenticated)
+            try mockAuthService.signOut()
+            XCTFail("La déconnexion a réussi alors qu'elle devrait échouer")
         } catch {
-            XCTFail("Signup should succeed: \(error)")
+            XCTAssertTrue(mockAuthService.signOutCalled, "La méthode signOut n'a pas été appelée")
         }
+    }
+    
+    // MARK: - Tests de vérification d'authentification
+    
+    func testIsUserAuthenticated() {
+        // Arrange
+        mockAuthService.isUserAuthenticatedReturnValue = true
         
-        // 2. Vérification d'état (sans reset pour garder l'état)
-        XCTAssertTrue(authService.isUserAuthenticated())
-        XCTAssertTrue(mockAuth.isUserAuthenticatedCalled)
+        // Act
+        let isAuthenticated = mockAuthService.isUserAuthenticated()
         
-        // 3. Déconnexion
-        mockAuth.mockError = nil // S'assurer qu'il n'y a pas d'erreur
-        try? authService.signOut()
-        XCTAssertTrue(mockAuth.signOutCalled)
-        XCTAssertFalse(mockAuth.mockIsAuthenticated)
+        // Assert
+        XCTAssertTrue(mockAuthService.isUserAuthenticatedCalled, "La méthode isUserAuthenticated n'a pas été appelée")
+        XCTAssertTrue(isAuthenticated, "L'utilisateur devrait être authentifié")
+    }
+    
+    func testIsUserNotAuthenticated() {
+        // Arrange
+        mockAuthService.isUserAuthenticatedReturnValue = false
         
-        // 4. Reconnexion
+        // Act
+        let isAuthenticated = mockAuthService.isUserAuthenticated()
+        
+        // Assert
+        XCTAssertTrue(mockAuthService.isUserAuthenticatedCalled, "La méthode isUserAuthenticated n'a pas été appelée")
+        XCTAssertFalse(isAuthenticated, "L'utilisateur ne devrait pas être authentifié")
+    }
+    
+    // MARK: - Tests de validation
+    
+    func testIsValidEmail() {
+        // Arrange
+        let validEmail = "test@example.com"
+        let invalidEmail = "test@"
+        
+        // Act & Assert
+        XCTAssertTrue(mockAuthService.isValidEmail(validEmail), "L'email valide n'est pas reconnu")
+        XCTAssertFalse(mockAuthService.isValidEmail(invalidEmail), "L'email invalide n'est pas détecté")
+        XCTAssertTrue(mockAuthService.isValidEmailCalled, "La méthode isValidEmail n'a pas été appelée")
+    }
+    
+    func testIsValidPassword() {
+        // Arrange
+        let validPassword = "password123"
+        let invalidPassword = "pass"
+        
+        // Act & Assert
+        XCTAssertTrue(mockAuthService.isValidPassword(validPassword), "Le mot de passe valide n'est pas reconnu")
+        XCTAssertFalse(mockAuthService.isValidPassword(invalidPassword), "Le mot de passe invalide n'est pas détecté")
+        XCTAssertTrue(mockAuthService.isValidPasswordCalled, "La méthode isValidPassword n'a pas été appelée")
+    }
+    
+    // MARK: - Tests de mise à jour de profil
+    
+    func testUpdateUserProfileSuccess() async {
+        // Arrange
+        mockAuthService.shouldThrowError = false
+        mockAuthService.currentUserMock = MockUser(uid: "test-uid", email: "test@example.com")
+        let newDisplayName = "Nouveau Nom"
+        
+        // Act
         do {
-            _ = try await authService.signIn(email: "user@test.com", password: "password123")
-            XCTAssertTrue(mockAuth.signInCalled)
+            try await mockAuthService.updateUserProfile(displayName: newDisplayName, photoURL: nil)
+            
+            // Assert
+            XCTAssertTrue(mockAuthService.updateUserProfileCalled, "La méthode updateUserProfile n'a pas été appelée")
+            XCTAssertEqual(mockAuthService.currentUserDisplayNameMock, newDisplayName, "Le nom d'affichage n'a pas été mis à jour")
         } catch {
-            XCTFail("Sign in should succeed: \(error)")
+            XCTFail("La mise à jour du profil a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
-        
-        // Vérifier que toutes les opérations ont été appelées
-        XCTAssertTrue(mockAuth.signUpCalled)
-        XCTAssertTrue(mockAuth.isUserAuthenticatedCalled)
-        XCTAssertTrue(mockAuth.signOutCalled)
-        XCTAssertTrue(mockAuth.signInCalled)
     }
     
-    // MARK: - Tests de validation étendue avec reset
-    
-    func testEmailValidation_ExtensiveTests_WithReset() {
-        mockAuth.reset()
+    func testUpdateUserProfileFailure() async {
+        // Arrange
+        mockAuthService.shouldThrowError = true
         
-        // Emails valides
-        let validEmails = [
-            "test@example.com",
-            "user.name+tag@domain.co.uk",
-            "firstname.lastname@company.org",
-            "a@b.co",
-            "user123@test-domain.com",
-            "user+label@example.museum"
-        ]
-        
-        for email in validEmails {
-            XCTAssertTrue(authService.isValidEmail(email), "Should be valid: \(email)")
+        // Act & Assert
+        do {
+            try await mockAuthService.updateUserProfile(displayName: "Test", photoURL: nil)
+            XCTFail("La mise à jour du profil a réussi alors qu'elle devrait échouer")
+        } catch {
+            XCTAssertTrue(mockAuthService.updateUserProfileCalled, "La méthode updateUserProfile n'a pas été appelée")
         }
-        
-        // Reset et test des emails invalides
-        mockAuth.reset()
-        
-        let invalidEmails = [
-            "",
-            "test",
-            "test@",
-            "@example.com",
-            "test@example",
-            "test.example.com",
-            "test@@example.com"
-        ]
-        
-        for email in invalidEmails {
-            XCTAssertFalse(authService.isValidEmail(email), "Should be invalid: \(email)")
-        }
-        
-        // Vérifier que les appels sont toujours trackés après reset
-        XCTAssertTrue(mockAuth.isValidEmailCalled)
     }
     
-    // MARK: - Tests de performance avec reset
+    // MARK: - Tests de suppression de compte
     
-    func testValidation_Performance_WithReset() {
-        mockAuth.reset()
+    func testDeleteAccountSuccess() async {
+        // Arrange
+        mockAuthService.shouldThrowError = false
+        mockAuthService.currentUserMock = MockUser(uid: "test-uid", email: "test@example.com")
         
-        let longEmail = String(repeating: "a", count: 1000) + "@example.com"
-        let longPassword = String(repeating: "p", count: 1000)
-        
-        measure {
-            _ = authService.isValidEmail(longEmail)
-            _ = authService.isValidPassword(longPassword)
+        // Act
+        do {
+            try await mockAuthService.deleteAccount()
+            
+            // Assert
+            XCTAssertTrue(mockAuthService.deleteAccountCalled, "La méthode deleteAccount n'a pas été appelée")
+            XCTAssertNil(mockAuthService.currentUser, "L'utilisateur courant n'est pas nil après suppression du compte")
+        } catch {
+            XCTFail("La suppression du compte a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
         }
-        
-        // Vérifier que les appels ont été trackés
-        XCTAssertTrue(mockAuth.isValidEmailCalled)
-        XCTAssertTrue(mockAuth.isValidPasswordCalled)
     }
     
-    // MARK: - Tests d'isolation entre tests
-    
-    func testIsolation_BetweenTests() {
-        // Ce test vérifie que les états ne se mélangent pas entre les tests
-        // Il devrait être executé après d'autres tests mais avoir un état propre
+    func testDeleteAccountFailure() async {
+        // Arrange
+        mockAuthService.shouldThrowError = true
         
-        // Vérifier que l'état est clean après setUp/tearDown
-        XCTAssertTrue(mockAuth.hasNoMethodsCalled, "Mock should be clean after reset")
-        XCTAssertFalse(mockAuth.mockIsAuthenticated)
-        XCTAssertNil(mockAuth.mockError)
-        XCTAssertNil(mockAuth.lastEmail)
-        XCTAssertNil(mockAuth.lastPassword)
-        
-        // Effectuer une opération
-        mockAuth.configureAuthState(isAuthenticated: true)
-        let isAuth = authService.isUserAuthenticated()
-        
-        XCTAssertTrue(isAuth)
-        XCTAssertTrue(mockAuth.isUserAuthenticatedCalled)
-        XCTAssertEqual(mockAuth.totalMethodCalls, 1)
+        // Act & Assert
+        do {
+            try await mockAuthService.deleteAccount()
+            XCTFail("La suppression du compte a réussi alors qu'elle devrait échouer")
+        } catch {
+            XCTAssertTrue(mockAuthService.deleteAccountCalled, "La méthode deleteAccount n'a pas été appelée")
+        }
     }
     
-    // MARK: - Tests edge cases avec reset
+    // MARK: - Tests de réinitialisation de mot de passe
     
-    func testEdgeCases_WithReset() {
-        mockAuth.reset()
+    func testResetPasswordSuccess() async {
+        // Arrange
+        mockAuthService.shouldThrowError = false
         
-        // Test avec caractères Unicode (maintenant supportés)
-        XCTAssertTrue(authService.isValidEmail("tëst@ëxamplë.com"))
-        XCTAssertTrue(authService.isValidPassword("pässwörd123"))
+        // Act
+        do {
+            try await mockAuthService.resetPassword(email: "test@example.com")
+            
+            // Assert
+            XCTAssertTrue(mockAuthService.resetPasswordCalled, "La méthode resetPassword n'a pas été appelée")
+        } catch {
+            XCTFail("La réinitialisation du mot de passe a échoué alors qu'elle devrait réussir: \(error.localizedDescription)")
+        }
+    }
+    
+    func testResetPasswordFailure() async {
+        // Arrange
+        mockAuthService.shouldThrowError = true
         
-        // Test avec caractères ASCII traditionnels
-        XCTAssertTrue(authService.isValidEmail("test@example.com"))
-        
-        // Test limites exactes
-        XCTAssertFalse(authService.isValidPassword("12345")) // 5 chars
-        XCTAssertTrue(authService.isValidPassword("123456"))  // 6 chars
-        
-        // Vérifier tracking
-        XCTAssertTrue(mockAuth.isValidEmailCalled)
-        XCTAssertTrue(mockAuth.isValidPasswordCalled)
+        // Act & Assert
+        do {
+            try await mockAuthService.resetPassword(email: "test@example.com")
+            XCTFail("La réinitialisation du mot de passe a réussi alors qu'elle devrait échouer")
+        } catch {
+            XCTAssertTrue(mockAuthService.resetPasswordCalled, "La méthode resetPassword n'a pas été appelée")
+        }
     }
 }

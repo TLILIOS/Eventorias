@@ -10,9 +10,13 @@ import Foundation
 import SwiftUI
 import PhotosUI
 import Observation
+import UIKit
+// Pas besoin d'importer ImageUploadState car il est défini dans le même module
 
 @Observable
 class EventViewModel: EventViewModelProtocol {
+    // Définition du type associé requis par le protocole
+    typealias UploadStateType = ImageUploadState
     
     // MARK: - Published Properties
     var events: [Event] = []
@@ -44,28 +48,6 @@ class EventViewModel: EventViewModelProtocol {
         case dateAscending = "Date (croissant)"
         case dateDescending = "Date (décroissant)"
         var id: String { self.rawValue }
-    }
-    
-    enum ImageUploadState: Equatable {
-        case ready
-        case uploading(progress: Double)
-        case success(url: String)
-        case failure(error: String)
-        
-        var isUploading: Bool {
-            switch self {
-            case .uploading: return true
-            default: return false
-            }
-        }
-        
-        var progressValue: Double {
-            switch self {
-            case .uploading(let progress): return progress
-            case .success: return 1.0
-            default: return 0.0
-            }
-        }
     }
     
     // MARK: - Private Methods

@@ -8,9 +8,18 @@
 import Foundation
 import SwiftUI
 import Combine
+import UIKit
+
+// Assurons-nous que l'énumération est accessible
+import Eventorias
 
 /// Protocole définissant les fonctionnalités requises d'un EventViewModel
 protocol EventViewModelProtocol: ObservableObject {
+    // MARK: - Associated Types
+    
+    /// Type pour l'état d'upload de l'image
+    associatedtype UploadStateType: Equatable
+    
     // MARK: - Event Creation Properties
     
     /// Titre de l'événement
@@ -29,7 +38,7 @@ protocol EventViewModelProtocol: ObservableObject {
     var eventImage: UIImage? { get set }
     
     /// État d'upload de l'image
-    var imageUploadState: EventViewModel.ImageUploadState { get set }
+    var imageUploadState: UploadStateType { get set }
     
     // MARK: - Methods
     

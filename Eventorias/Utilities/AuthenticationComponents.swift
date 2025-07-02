@@ -97,34 +97,34 @@ struct ActionSection: View {
 /// Vue principale d'authentification
 struct AuthenticationView: View {
     @StateObject private var viewModel = AppDependencyContainer.shared.makeAuthenticationViewModel()
-    @State private var isSignUp = false
+    
+    // Computed property for form validation
+    private var isFormValid: Bool {
+        !viewModel.email.isEmpty && viewModel.password.count >= 6
+    }
     
     var body: some View {
         NavigationView {
-            Form {
+            Form(content: {
                 EmailSection(email: $viewModel.email)
                 PasswordSection(password: $viewModel.password)
                 ActionSection(
-                    isSignUp: $isSignUp,
-                    isFormValid: viewModel.isFormValid,
+                    isSignUp: .constant(false), // No sign-up functionality in current ViewModel
+                    isFormValid: isFormValid,
                     isLoading: viewModel.isLoading
                 ) {
                     Task {
-                        if isSignUp {
-                            await viewModel.signUp()
-                        } else {
-                            await viewModel.signIn()
-                        }
+                        await viewModel.signIn()
                     }
                 }
-            }
-            .navigationTitle(isSignUp ? "Inscription" : "Connexion")
-            .alert("Erreur", isPresented: $viewModel.showingError) {
+            })
+            .navigationTitle("Connexion")
+            .alert("Erreur", isPresented: .init(get: { viewModel.errorMessage != nil }, set: { _ in viewModel.dismissError() })) {
                 Button("OK") {
                     viewModel.dismissError()
                 }
             } message: {
-                Text(viewModel.errorMessage)
+                Text(viewModel.errorMessage ?? "Une erreur s'est produite")
             }
         }
     }
