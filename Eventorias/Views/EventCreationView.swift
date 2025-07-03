@@ -34,6 +34,7 @@ struct EventCreationView: View {
     @State private var description = ""
     @State private var date = Date()
     @State private var address = ""
+    @State private var selectedCategory: EventCategory = .other
     @State private var selectedImage: UIImage?
     
     // UI state
@@ -152,6 +153,36 @@ struct EventCreationView: View {
                 .onChange(of: address) { newValue in
                     viewModel.eventAddress = newValue
                 }
+                
+            // Catégorie d'événement
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Catégorie")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.gray)
+                    .padding(.leading, 5)
+                
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color("DarkGray"))
+                        .frame(height: 56)
+                    
+                    Picker("Catégorie", selection: $selectedCategory) {
+                        ForEach(EventCategory.allCases) { category in
+                            HStack {
+                                Image(systemName: category.icon)
+                                Text(category.rawValue)
+                            }
+                            .tag(category)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .accentColor(.white)
+                    .padding(.horizontal, 16)
+                    .onChange(of: selectedCategory) { newValue in
+                        viewModel.eventCategory = newValue
+                    }
+                }
+            }
         }
     }
 
@@ -422,7 +453,7 @@ struct EventCreationView: View {
 struct EventCreationView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            EventCreationView(eventViewModel: EventViewModel(eventService: EventService()))
+            EventCreationView(eventViewModel: EventViewModel(eventService: EventService(), notificationService: NotificationService()))
         }
     }
 }

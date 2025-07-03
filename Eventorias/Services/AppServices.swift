@@ -125,6 +125,63 @@ class DefaultEventFirestoreService: FirestoreServiceProtocol {
         }
         return sampleEvent
     }
+    
+    // MARK: - Invitation Management
+    
+    func createInvitation(_ invitation: Invitation) async throws {
+        let invitationRef = db.collection("invitations").document(invitation.id ?? UUID().uuidString)
+        try await invitationRef.setData(from: invitation)
+    }
+    
+    func updateInvitation(_ invitation: Invitation) async throws {
+        guard let id = invitation.id else {
+            throw NSError(
+                domain: "FirebaseFirestoreService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invitation ID is required"]
+            )
+        }
+        
+        let invitationRef = db.collection("invitations").document(id)
+        try await invitationRef.setData(from: invitation, merge: true)
+    }
+    
+    func deleteInvitation(_ invitationId: String) async throws {
+        let invitationRef = db.collection("invitations").document(invitationId)
+        try await invitationRef.delete()
+    }
+    
+    func getEventInvitations(eventId: String) async throws -> [Invitation] {
+        let query = db.collection("invitations")
+            .whereField("eventId", isEqualTo: eventId)
+        
+        let querySnapshot = try await query.getDocuments()
+        var invitations: [Invitation] = []
+        
+        for document in querySnapshot.documents {
+            if let invitation = try? document.data(as: Invitation.self) {
+                invitations.append(invitation)
+            }
+        }
+        
+        return invitations
+    }
+    
+    func getUserInvitations(userId: String) async throws -> [Invitation] {
+        let query = db.collection("invitations")
+            .whereField("inviteeId", isEqualTo: userId)
+        
+        let querySnapshot = try await query.getDocuments()
+        var invitations: [Invitation] = []
+        
+        for document in querySnapshot.documents {
+            if let invitation = try? document.data(as: Invitation.self) {
+                invitations.append(invitation)
+            }
+        }
+        
+        return invitations
+    }
 }
 
 /// Default implementation of GeocodingService using CoreLocation
@@ -212,7 +269,7 @@ class DefaultMapNetworkService: MapNetworkService {
 /// Default implementation of ConfigurationService
 class DefaultConfigurationService: ConfigurationService {
     var googleMapsAPIKey: String {
-        return "AIzaSyDB5MkjrYJCdIYS_rCT2QiBs6jocJ7sY-g"
+        return Secrets.googleMapsAPIKey
     }
 }
 

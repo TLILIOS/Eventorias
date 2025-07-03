@@ -13,6 +13,8 @@ struct EmailSignInView: View {
     @EnvironmentObject private var viewModel: AuthenticationViewModel
     @State private var isSignUpMode = false
     @State private var photoItem: PhotosPickerItem?
+    @State private var localPassword = "" // État local pour le mot de passe
+    @State private var showError = false // État pour contrôler l'affichage de l'alerte d'erreur
     var backgroundColor: Color = Color("DarkGray")
 
     // Utiliser @AppStorage pour accéder directement à l'email et au nom d'utilisateur
@@ -20,7 +22,7 @@ struct EmailSignInView: View {
     @AppStorage("lastUsername") private var storedUsername: String = ""
     // Computed property for form validation
     private var isFormValid: Bool {
-        !viewModel.email.isEmpty && viewModel.password.count >= 6
+        !viewModel.email.isEmpty && localPassword.count >= 6
     }
     
     var body: some View {
@@ -63,12 +65,17 @@ struct EmailSignInView: View {
                 }
             }
             .disabled(viewModel.isLoading)
-            .alert("Erreur", isPresented: .init(get: { viewModel.errorMessage != nil }, set: { _ in viewModel.dismissError() })) {
-                Button("OK", role: .cancel) {
+            .onChange(of: viewModel.errorMessage) { newError in
+                showError = newError != nil
+            }
+            .alert("Erreur", isPresented: $showError) {
+                Button("OK") {
                     viewModel.dismissError()
                 }
             } message: {
-                Text(viewModel.errorMessage ?? "Une erreur s'est produite")
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                }
             }
             .onChange(of: viewModel.userIsLoggedIn) { _, isAuthenticated in
                 if isAuthenticated {
@@ -86,13 +93,8 @@ struct EmailSignInView: View {
                 // Charger email et username uniquement depuis loadStoredCredentials
                 viewModel.loadStoredCredentials()
                 
-                // Charger le mot de passe seulement après un délai
-                // pour éviter les conflits avec l'interaction utilisateur
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    // Le délai permet d'avoir le temps d'afficher la vue
-                    // avant de modifier le mot de passe
-                    viewModel.loadPasswordFromKeychain()
-                }
+                // Le chargement automatique du mot de passe a été supprimé
+                // pour éviter les problèmes de saisie
             }
             .onChange(of: photoItem) { _, newItem in
             Task {
@@ -146,15 +148,15 @@ struct EmailSignInView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.gray)
                 
+                // Utilisation du StyledTextField original mais lié à l'état local
                 StyledTextField(
                     placeholder: "Entrez votre mot de passe",
-                    text: $viewModel.password,
+                    text: $localPassword, // Lié à l'état local au lieu du ViewModel
                     isSecure: true,
                     showPasswordToggle: true,
-                    textContentType: .password,
+                    textContentType: nil, // Pas de textContentType pour éviter les interférences
                     accessibilityId: "Champ mot de passe"
                 )
-
             }
             
             // Champs supplémentaires en mode inscription
@@ -261,6 +263,9 @@ struct EmailSignInView: View {
     }
     
     private func handleAuthentication() {
+        // Synchroniser le mot de passe local avec le ViewModel juste avant l'authentification
+        viewModel.password = localPassword
+        
         Task {
             if isSignUpMode {
                 await viewModel.signUp()

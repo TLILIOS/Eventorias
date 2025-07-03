@@ -35,6 +35,9 @@ protocol DependencyContainerProtocol {
     
     /// Returns APIService implementation
     func apiService() -> APIServiceProtocol
+    
+    /// Returns NotificationService implementation
+    func notificationService() -> NotificationServiceProtocol
 }
 
 /// Default implementation of the dependency container for the main application
@@ -48,6 +51,7 @@ class AppDependencyContainer: DependencyContainerProtocol {
     private var keychainServiceInstance: KeychainServiceProtocol?
     private var storageServiceInstance: StorageServiceProtocol?
     private var firestoreServiceInstance: FirestoreServiceProtocol?
+    private var notificationServiceInstance: NotificationServiceProtocol?
     private var authViewModelInstance: AuthenticationViewModel?
     
     /// Private initializer to enforce singleton pattern
@@ -123,6 +127,16 @@ class AppDependencyContainer: DependencyContainerProtocol {
         return newService
     }
     
+    /// Returns the concrete implementation of NotificationService
+    func notificationService() -> NotificationServiceProtocol {
+        if let existingService = notificationServiceInstance {
+            return existingService
+        }
+        let newService = NotificationService()
+        notificationServiceInstance = newService
+        return newService
+    }
+    
     /// Redéfinition de la méthode pour utiliser le singleton AuthenticationViewModel
     func makeAuthenticationViewModel() -> AuthenticationViewModel {
         if let existingViewModel = authViewModelInstance {
@@ -143,7 +157,7 @@ class AppDependencyContainer: DependencyContainerProtocol {
 extension DependencyContainerProtocol {
     /// Creates and configures an EventViewModel with the container's event service
     func makeEventViewModel() -> EventViewModel {
-        return EventViewModel(eventService: eventService())
+        return EventViewModel(eventService: eventService(), notificationService: notificationService())
     }
     
     /// Creates and configures an EventDetailsViewModel with the container's services
@@ -152,7 +166,8 @@ extension DependencyContainerProtocol {
             firestoreService: firestoreService(),
             geocodingService: geocodingService(),
             mapNetworkService: mapNetworkService(),
-            configurationService: configurationService()
+            configurationService: configurationService(),
+            authenticationService: authenticationService()
         )
     }
     
@@ -184,6 +199,14 @@ extension DependencyContainerProtocol {
             authService: authenticationService(),
             storageService: storageService(),
             firestoreService: firestoreService() 
+        )
+    }
+    
+    /// Creates and configures an InvitationViewModel with the container's services
+    func makeInvitationViewModel() -> InvitationViewModel {
+        return InvitationViewModel(
+            firestoreService: firestoreService(), 
+            authService: authenticationService()
         )
     }
     

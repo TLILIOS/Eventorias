@@ -15,6 +15,7 @@ class EventViewModelTests: XCTestCase {
     
     private var viewModel: EventViewModel!
     private var mockEventService: MockEventService!
+    private var mockNotificationService: MockNotificationService!
     private var cancellables: Set<AnyCancellable>!
     
     // MARK: - Setup & Teardown
@@ -22,7 +23,8 @@ class EventViewModelTests: XCTestCase {
     override func setUp() {
         super.setUp()
         mockEventService = MockEventService()
-        viewModel = EventViewModel(eventService: mockEventService)
+        mockNotificationService = MockNotificationService()
+        viewModel = EventViewModel(eventService: mockEventService, notificationService: mockNotificationService)
         cancellables = []
     }
     
@@ -46,7 +48,7 @@ class EventViewModelTests: XCTestCase {
             organizer: "Organisateur Test",
             organizerImageURL: "https://example.com/organizer.jpg",
             imageURL: "https://example.com/image.jpg",
-            category: "Test",
+            category: .other,
             tags: ["test"],
             createdAt: Date()
         )
@@ -207,8 +209,8 @@ class EventViewModelTests: XCTestCase {
     func testFilteredEvents_WhenSearchTextIsEmpty_ShouldReturnAllEventsSorted() {
         // Given
         let testEvents = [
-            Event(id: "1", title: "Premier événement", description: "Description 1", date: Date().addingTimeInterval(3600), location: "Paris", organizer: "Org1", organizerImageURL: "org-url1", imageURL: "url1", category: "Test", tags: [], createdAt: Date()),
-            Event(id: "2", title: "Deuxième événement", description: "Description 2", date: Date(), location: "Lyon", organizer: "Org2", organizerImageURL: "org-url2", imageURL: "url2", category: "Test", tags: [], createdAt: Date())
+            Event(id: "1", title: "Premier événement", description: "Description 1", date: Date().addingTimeInterval(3600), location: "Paris", organizer: "Org1", organizerImageURL: "org-url1", imageURL: "url1", category: .art, tags: [], createdAt: Date()),
+            Event(id: "2", title: "Deuxième événement", description: "Description 2", date: Date(), location: "Lyon", organizer: "Org2", organizerImageURL: "org-url2", imageURL: "url2", category: .other, tags: [], createdAt: Date())
         ]
         viewModel.events = testEvents
         viewModel.searchText = ""
@@ -226,8 +228,8 @@ class EventViewModelTests: XCTestCase {
     func testFilteredEvents_WhenSearchTextIsNotEmpty_ShouldReturnMatchingEvents() {
         // Given
         let testEvents = [
-            Event(id: "1", title: "Premier événement", description: "Description 1", date: Date(), location: "Paris", organizer: "Org1", organizerImageURL: "org-url1", imageURL: "url1", category: "Test", tags: [], createdAt: Date()),
-            Event(id: "2", title: "Deuxième événement", description: "Description 2", date: Date(), location: "Lyon", organizer: "Org2", organizerImageURL: "org-url2", imageURL: "url2", category: "Test", tags: [], createdAt: Date())
+            Event(id: "1", title: "Premier événement", description: "Description 1", date: Date(), location: "Paris", organizer: "Org1", organizerImageURL: "org-url1", imageURL: "url1", category: .sport, tags: [], createdAt: Date()),
+            Event(id: "2", title: "Deuxième événement", description: "Description 2", date: Date(), location: "Lyon", organizer: "Org2", organizerImageURL: "org-url2", imageURL: "url2", category: .other, tags: [], createdAt: Date())
         ]
         viewModel.events = testEvents
         viewModel.searchText = "premier"

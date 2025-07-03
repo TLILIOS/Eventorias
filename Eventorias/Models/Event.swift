@@ -18,8 +18,9 @@ struct Event: Identifiable, Codable {
     var organizer: String
     var organizerImageURL: String?
     var imageURL: String?
-    var category: String
+    var category: EventCategory
     var tags: [String]?
+    var invitations: [String]? // Liste des IDs d'utilisateurs invités
     var createdAt: Date
     
     enum CodingKeys: String, CodingKey {
@@ -59,7 +60,7 @@ extension Event {
                 organizer: "Galerie Moderne",
                 organizerImageURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
                 imageURL: "https://images.unsplash.com/photo-1594122230689-45899d9e6f69",
-                category: "Art",
+                category: .art,
                 tags: ["Exposition", "Art", "Culture"],
                 createdAt: Date()
             ),
@@ -72,7 +73,7 @@ extension Event {
                 organizer: "TechForum",
                 organizerImageURL: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
                 imageURL: "https://images.unsplash.com/photo-1505373877841-8d25f7d46678",
-                category: "Technologie",
+                category: .technology,
                 tags: ["Tech", "Innovation", "Conférence"],
                 createdAt: Date()
             ),
@@ -85,7 +86,7 @@ extension Event {
                 organizer: "Food Lovers",
                 organizerImageURL: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
                 imageURL: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1",
-                category: "Gastronomie",
+                category: .food,
                 tags: ["Food", "Cuisine", "Festival"],
                 createdAt: Date()
             ),
@@ -98,7 +99,7 @@ extension Event {
                 organizer: "Librairie Central",
                 organizerImageURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
                 imageURL: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570",
-                category: "Littérature",
+                category: .education,
                 tags: ["Livre", "Auteur", "Signature"],
                 createdAt: Date()
             ),
@@ -111,7 +112,7 @@ extension Event {
                 organizer: "Cinéma Rex",
                 organizerImageURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
                 imageURL: "https://images.unsplash.com/photo-1489599843433-adea4ebd8685",
-                category: "Cinéma",
+                category: .entertainment,
                 tags: ["Film", "Première", "Cinéma"],
                 createdAt: Date()
             ),
@@ -124,7 +125,7 @@ extension Event {
                 organizer: "Association Sport & Solidarité",
                 organizerImageURL: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
                 imageURL: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b",
-                category: "Sport",
+                category: .sport,
                 tags: ["Course", "Charité", "Sport"],
                 createdAt: Date()
             ),
@@ -137,7 +138,7 @@ extension Event {
                 organizer: "Studio Photo Vision",
                 organizerImageURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
                 imageURL: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd",
-                category: "Photographie",
+                category: .art,
                 tags: ["Photo", "Workshop", "Urbain"],
                 createdAt: Date()
             ),
@@ -150,7 +151,7 @@ extension Event {
                 organizer: "Jazz & Co Productions",
                 organizerImageURL: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
                 imageURL: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-                category: "Musique",
+                category: .music,
                 tags: ["Jazz", "Festival", "Concert"],
                 createdAt: Date()
             ),
@@ -163,7 +164,7 @@ extension Event {
                 organizer: "Jardins & Nature",
                 organizerImageURL: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
                 imageURL: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b",
-                category: "Nature",
+                category: .other,
                 tags: ["Jardinage", "Écologie", "Plantes"],
                 createdAt: Date()
             ),
@@ -176,7 +177,7 @@ extension Event {
                 organizer: "Artisans de Champagne",
                 organizerImageURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
                 imageURL: "https://images.unsplash.com/photo-1512474932049-78ac69ede12c",
-                category: "Artisanat",
+                category: .art,
                 tags: ["Noël", "Artisanat", "Marché"],
                 createdAt: Date()
             ),
@@ -189,7 +190,7 @@ extension Event {
                 organizer: "Zen & Harmony Center",
                 organizerImageURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
                 imageURL: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4",
-                category: "Bien-être",
+                category: .social,
                 tags: ["Méditation", "Yoga", "Détente"],
                 createdAt: Date()
             ),
@@ -202,7 +203,7 @@ extension Event {
                 organizer: "Théâtre du Palais",
                 organizerImageURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
                 imageURL: "https://images.unsplash.com/photo-1507924538820-ede94a04019d",
-                category: "Théâtre",
+                category: .entertainment,
                 tags: ["Théâtre", "Spectacle", "Culture"],
                 createdAt: Date()
             ),
@@ -215,7 +216,7 @@ extension Event {
                 organizer: "Observatoire d'Auvergne",
                 organizerImageURL: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150",
                 imageURL: "https://images.unsplash.com/photo-1446776653964-20c1d3a81b06",
-                category: "Science",
+                category: .education,
                 tags: ["Astronomie", "Étoiles", "Science"],
                 createdAt: Date()
             ),
@@ -228,7 +229,7 @@ extension Event {
                 organizer: "Latino Dance Academy",
                 organizerImageURL: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
                 imageURL: "https://images.unsplash.com/photo-1504609813442-a8924e83f76e",
-                category: "Danse",
+                category: .entertainment,
                 tags: ["Salsa", "Danse", "Latino"],
                 createdAt: Date()
             ),
@@ -241,7 +242,7 @@ extension Event {
                 organizer: "Innovation Hub Bretagne",
                 organizerImageURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
                 imageURL: "https://images.unsplash.com/photo-1559136555-9303baea8ebd",
-                category: "Business",
+                category: .business,
                 tags: ["Startup", "Entrepreneuriat", "Innovation"],
                 createdAt: Date()
             ),
@@ -254,7 +255,7 @@ extension Event {
                 organizer: "Office du Tourisme",
                 organizerImageURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150",
                 imageURL: "https://images.unsplash.com/photo-1520637836862-4d197d17c43a",
-                category: "Histoire",
+                category: .education,
                 tags: ["Château", "Médiéval", "Patrimoine"],
                 createdAt: Date()
             )

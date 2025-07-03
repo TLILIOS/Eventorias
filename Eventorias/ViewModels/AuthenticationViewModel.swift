@@ -63,6 +63,7 @@ class AuthenticationViewModel: ObservableObject, AuthenticationViewModelProtocol
     func signIn() async {
         isLoading = true
         errorMessage = nil
+        
         do {
             _ = try await authenticationService.signIn(email: email, password: password)
             userIsLoggedIn = true

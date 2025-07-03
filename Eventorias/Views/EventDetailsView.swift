@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct EventDetailsView: View {
     // MARK: - Properties
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = AppDependencyContainer.shared.makeEventDetailsViewModel()
+    @State private var isSharePresented: Bool = false
     let eventID: String
     var backgroundColor: Color = Color("DarkGray")
     // MARK: - Body
@@ -27,9 +29,23 @@ struct EventDetailsView: View {
                         eventImageSection(event)
                         dateTimeSection(event)
                         descriptionSection(event)
+                        
+                        // Section invitations (si disponible)
+                        if let invitationViewModel = viewModel.invitationViewModel {
+                            Divider()
+                                .background(Color.gray.opacity(0.3))
+                                .padding(.vertical, 8)
+                            
+                            InvitationListView(
+                                viewModel: invitationViewModel,
+                                eventId: eventID,
+                                isOrganizer: viewModel.isOrganizer
+                            )
+                            .padding(.vertical, 8)
+                        }
+                        
                         Spacer()
                         locationSection(event)
-//                        Color.clear.frame(height: 16)
                     }
                     .background(Color.black)
               
@@ -62,6 +78,20 @@ struct EventDetailsView: View {
                         Text(viewModel.event?.title ?? "Détails")
                     }
                     .foregroundColor(.white)
+                }
+            }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if let event = viewModel.event {
+                    Button {
+                        isSharePresented = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(.white)
+                    }
+                    .sheet(isPresented: $isSharePresented) {
+                        ShareSheet(event: event)
+                    }
                 }
             }
         }

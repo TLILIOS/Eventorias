@@ -82,7 +82,7 @@ class MockDocumentSnapshot: DocumentSnapshotProtocol {
                           let description = mockData["description"] as? String,
                           let location = mockData["location"] as? String,
                           let organizer = mockData["organizer"] as? String,
-                          let category = mockData["category"] as? String else {
+                          let categoryString = mockData["category"] as? String else {
                         print("❌ Champs obligatoires manquants dans les données mock")
                         throw FirestoreError.decodingError
                     }
@@ -108,7 +108,7 @@ class MockDocumentSnapshot: DocumentSnapshotProtocol {
                         organizer: organizer,
                         organizerImageURL: organizerImageURL,
                         imageURL: imageURL,
-                        category: category,
+                        category: EventCategory.fromString(categoryString),
                         tags: tags,
                         createdAt: createdAt
                     )
@@ -181,7 +181,6 @@ class MockDocumentSnapshot: DocumentSnapshotProtocol {
         @unknown default:
             print("Erreur de décodage inconnue")
         }
-        print("===================================\n")
     }
 }
 
@@ -194,7 +193,7 @@ class MockFirestoreService: FirestoreServiceProtocol {
     var deleteEventCalled = false
     var getEventsForUserCalled = false
     var getAllEventsCalled = false
-    var getEventsWithFilterCalled = false
+    // var getEventsWithFilterCalled = false
     
     // Variables pour contrôler le comportement simulé
     var shouldThrowError = false
@@ -204,6 +203,9 @@ class MockFirestoreService: FirestoreServiceProtocol {
     var mockDocument: DocumentSnapshotProtocol?
     var mockEvents: [Event] = []
     var mockQuerySnapshot: [DocumentSnapshotProtocol] = []
+    
+    // Mock pour les invitations
+    var mockGetEventInvitations: MockMethod<String, [Invitation]>?
     
     func createEvent(_ event: Event) async throws {
         createEventCalled = true
@@ -253,7 +255,7 @@ class MockFirestoreService: FirestoreServiceProtocol {
             organizer: "Organisateur Exemple",
             organizerImageURL: "https://example.com/organizer.jpg",
             imageURL: "https://example.com/image.jpg",
-            category: "Autre",
+            category: .other,
             tags: ["exemples", "test"],
             createdAt: Date()
         )
@@ -266,9 +268,45 @@ class MockFirestoreService: FirestoreServiceProtocol {
         deleteEventCalled = false
         getEventsForUserCalled = false
         getAllEventsCalled = false
-        getEventsWithFilterCalled = false
+        // getEventsWithFilterCalled = false
+        createInvitationCalled = false
+        updateInvitationCalled = false
+        deleteInvitationCalled = false
+        getEventInvitationsCalled = false
+        getUserInvitationsCalled = false
         shouldThrowError = false
     }
+    
+    // MARK: Implémentation des méthodes de gestion des invitations
+    
+//    func createInvitation(_ invitation: Invitation) async throws {
+//        createInvitationCalled = true
+//        if shouldThrowError {
+//            throw mockError
+//        }
+//    }
+//    
+//    func updateInvitation(_ invitation: Invitation) async throws {
+//        updateInvitationCalled = true
+//        if shouldThrowError {
+//            throw mockError
+//        }
+//    }
+//    
+//    func deleteInvitation(_ invitationId: String) async throws {
+//        deleteInvitationCalled = true
+//        if shouldThrowError {
+//            throw mockError
+//        }
+//    }
+//    
+//    func getEventInvitations(eventId: String) async throws -> [Invitation] {
+//        getEventInvitationsCalled = true
+//        if shouldThrowError {
+//            throw mockError
+//        }
+//        return mockInvitations.filter { $0.eventId == eventId }
+//    }
 
     
     func deleteEvent(eventID: String) async throws {
@@ -294,25 +332,22 @@ class MockFirestoreService: FirestoreServiceProtocol {
         return mockEvents
     }
     
-    // Énumération simple pour les tests
-    enum SortOption {
-        case date
-        case name
-        case category
-    }
+    // MARK: - Variables de suivi pour les invitations
     
-    // Variable pour suivre l'option de tri utilisée
-    var sortOptionUsed: SortOption = .date
+    var createInvitationCalled = false
+    var updateInvitationCalled = false
+    var deleteInvitationCalled = false
+    var getEventInvitationsCalled = false
+    var getUserInvitationsCalled = false
+    var mockInvitations: [Invitation] = []
     
-    func getEventsWithFilter(category: String?, searchText: String?, sortBy: SortOption = .date) async throws -> [Event] {
-        getEventsWithFilterCalled = true
-        sortOptionUsed = sortBy
+    func getUserInvitations(userId: String) async throws -> [Invitation] {
+        getUserInvitationsCalled = true
         if shouldThrowError {
             throw mockError
         }
-        
-        // Ici on pourrait filtrer mockEvents selon les paramètres,
-        // mais comme c'est un mock simple, on retourne juste tous les événements
-        return mockEvents
+        return mockInvitations.filter { $0.inviteeId == userId }
     }
+    
+    
 }

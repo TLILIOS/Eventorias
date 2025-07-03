@@ -72,6 +72,7 @@ struct SignInView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "An error occurred")
             }
+            //!!!!!
             .navigationDestination(isPresented: $viewModel.userIsLoggedIn) {
                 EventList()
                     .environmentObject(viewModel)

@@ -26,7 +26,7 @@ protocol EventServiceProtocol {
     /// - Parameter category: The category to filter by
     /// - Returns: Array of matching Event objects
     /// - Throws: Error if filtering fails
-    func filterEventsByCategory(category: String) async throws -> [Event]
+    func filterEventsByCategory(category: EventCategory) async throws -> [Event]
     
     /// Gets events sorted by date
     /// - Parameter ascending: If true, sorts from oldest to newest; if false, newest to oldest

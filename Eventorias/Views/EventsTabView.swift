@@ -68,7 +68,13 @@ struct EventsMainContent: View {
                 VStack(spacing: 0) {
                     EventSearchBar(eventViewModel: eventViewModel)
                     EventSortButton(eventViewModel: eventViewModel)
-                    EventsListContent(eventViewModel: eventViewModel)
+                    
+                    // Affichage conditionnel en fonction du mode choisi
+                    if eventViewModel.viewMode == .list {
+                        EventsListContent(eventViewModel: eventViewModel)
+                    } else {
+                        EventCalendarView(eventViewModel: eventViewModel)
+                    }
                 }
             }
     }

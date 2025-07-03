@@ -49,122 +49,12 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D0D306EA2DE60A83001859BF /* Exceptions for "Eventorias" folder in "Eventorias" target */ = {
+		D034E7262E16042A005A834F /* Exceptions for "Eventorias" folder in "Eventorias" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Assets.xcassets,
-				DependencyInjection/DependencyContainer.swift,
-				Enums/ImageUploadState.swift,
-				EventoriasApp.swift,
-				"GoogleService-Info.plist",
-				Models/Adapters/FirebaseAdapters.swift,
-				Models/Adapters/StorageAdapters.swift,
-				Models/Event.swift,
-				Protocols/AnyEventViewModel.swift,
-				Protocols/APIServiceProtocol.swift,
-				Protocols/AuthenticationServiceProtocol.swift,
-				Protocols/AuthenticationViewModelProtocol.swift,
-				Protocols/AuthProviderProtocol.swift,
-				Protocols/EventViewModelProtocol.swift,
-				Protocols/FirestoreServiceProtocol.swift,
-				Protocols/KeychainServiceProtocol.swift,
-				Protocols/RepositoryProtocol.swift,
-				Protocols/StorageMetadataProtocol.swift,
-				Protocols/StorageServiceProtocol.swift,
-				Repositories/EventRepository.swift,
-				Services/AppServices.swift,
-				Services/DefaultAPIService.swift,
-				Services/EventService.swift,
-				Services/EventServiceProtocol.swift,
-				Services/FirebaseAuthenticationService.swift,
-				Services/FirebaseAuthProvider.swift,
-				Services/KeychainService.swift,
-				Utilities/AuthenticationComponents.swift,
-				Utilities/ImageCache.swift,
-				ViewModels/AuthenticationViewModel.swift,
-				ViewModels/EventCreationViewModel.swift,
-				ViewModels/EventDetailsViewModel.swift,
-				ViewModels/EventViewModel.swift,
-				ViewModels/ProfileViewModel.swift,
-				Views/Components/CachedAsyncImage.swift,
-				Views/Components/ErrorView.swift,
-				Views/Components/EventRowView.swift,
-				Views/Components/EventSearchBar.swift,
-				Views/Components/EventSortButton.swift,
-				Views/Components/FloatingActionButton.swift,
-				Views/Components/FormFieldViews.swift,
-				Views/Components/LoadingView.swift,
-				Views/Components/ProfileImageSelector.swift,
-				Views/EmailSignInView.swift,
-				Views/EventCreationView.swift,
-				Views/EventDetailsView.swift,
-				Views/EventList.swift,
-				Views/EventScrollList.swift,
-				Views/EventsListContent.swift,
-				Views/EventsTabView.swift,
-				Views/ProfileView.swift,
-				Views/SignInView.swift,
+				Info.plist,
 			);
 			target = D0D306372DE4D791001859BF /* Eventorias */;
-		};
-		D0D306EB2DE60A83001859BF /* Exceptions for "Eventorias" folder in "EventoriasTests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Assets.xcassets,
-				DependencyInjection/DependencyContainer.swift,
-				Enums/ImageUploadState.swift,
-				EventoriasApp.swift,
-				"GoogleService-Info.plist",
-				Info.plist,
-				Models/Adapters/FirebaseAdapters.swift,
-				Models/Adapters/StorageAdapters.swift,
-				Models/Event.swift,
-				Protocols/AnyEventViewModel.swift,
-				Protocols/APIServiceProtocol.swift,
-				Protocols/AuthenticationServiceProtocol.swift,
-				Protocols/AuthenticationViewModelProtocol.swift,
-				Protocols/AuthProviderProtocol.swift,
-				Protocols/EventViewModelProtocol.swift,
-				Protocols/FirestoreServiceProtocol.swift,
-				Protocols/KeychainServiceProtocol.swift,
-				Protocols/RepositoryProtocol.swift,
-				Protocols/StorageMetadataProtocol.swift,
-				Protocols/StorageServiceProtocol.swift,
-				Repositories/EventRepository.swift,
-				Services/AppServices.swift,
-				Services/DefaultAPIService.swift,
-				Services/EventService.swift,
-				Services/EventServiceProtocol.swift,
-				Services/FirebaseAuthenticationService.swift,
-				Services/FirebaseAuthProvider.swift,
-				Services/KeychainService.swift,
-				Utilities/AuthenticationComponents.swift,
-				Utilities/ImageCache.swift,
-				ViewModels/AuthenticationViewModel.swift,
-				ViewModels/EventCreationViewModel.swift,
-				ViewModels/EventDetailsViewModel.swift,
-				ViewModels/EventViewModel.swift,
-				ViewModels/ProfileViewModel.swift,
-				Views/Components/CachedAsyncImage.swift,
-				Views/Components/ErrorView.swift,
-				Views/Components/EventRowView.swift,
-				Views/Components/EventSearchBar.swift,
-				Views/Components/EventSortButton.swift,
-				Views/Components/FloatingActionButton.swift,
-				Views/Components/FormFieldViews.swift,
-				Views/Components/LoadingView.swift,
-				Views/Components/ProfileImageSelector.swift,
-				Views/EmailSignInView.swift,
-				Views/EventCreationView.swift,
-				Views/EventDetailsView.swift,
-				Views/EventList.swift,
-				Views/EventScrollList.swift,
-				Views/EventsListContent.swift,
-				Views/EventsTabView.swift,
-				Views/ProfileView.swift,
-				Views/SignInView.swift,
-			);
-			target = D0D306442DE4D793001859BF /* EventoriasTests */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -182,8 +72,7 @@
 		D0D306E22DE60A83001859BF /* Eventorias */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				D0D306EA2DE60A83001859BF /* Exceptions for "Eventorias" folder in "Eventorias" target */,
-				D0D306EB2DE60A83001859BF /* Exceptions for "Eventorias" folder in "EventoriasTests" target */,
+				D034E7262E16042A005A834F /* Exceptions for "Eventorias" folder in "Eventorias" target */,
 			);
 			path = Eventorias;
 			sourceTree = "<group>";
@@ -266,6 +155,9 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				D0D306E22DE60A83001859BF /* Eventorias */,
+			);
 			name = Eventorias;
 			packageProductDependencies = (
 				D0975E002DED25E800E500DD /* FirebaseAI */,
@@ -304,7 +196,6 @@
 			);
 			fileSystemSynchronizedGroups = (
 				D0D306482DE4D793001859BF /* EventoriasTests */,
-				D0D306E22DE60A83001859BF /* Eventorias */,
 			);
 			name = EventoriasTests;
 			packageProductDependencies = (

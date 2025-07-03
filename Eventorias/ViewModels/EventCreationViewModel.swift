@@ -18,6 +18,7 @@ final class EventCreationViewModel: ObservableObject {
     @Published var eventDescription: String = "" 
     @Published var eventDate: Date = Date()
     @Published var eventAddress: String = ""
+    @Published var eventCategory: EventCategory = .other
     @Published var eventImage: UIImage?
     @Published var showingAlert = false
     @Published var alertTitle = ""
@@ -153,7 +154,7 @@ final class EventCreationViewModel: ObservableObject {
                 organizer: organizer,
                 organizerImageURL: nil,
                 imageURL: imageURL,
-                category: "Général",
+                category: .music,
                 tags: ["Nouvel événement"],
                 createdAt: Date()
             )

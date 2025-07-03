@@ -61,9 +61,9 @@ class EventService: EventServiceProtocol {
     }
     
     // Filtrer les événements par catégorie
-    func filterEventsByCategory(category: String) async throws -> [Event] {
+    func filterEventsByCategory(category: EventCategory) async throws -> [Event] {
         try await db.collection(collectionPath)
-            .whereField("category", isEqualTo: category)
+            .whereField("category", isEqualTo: category.rawValue)
             .getDocuments()
             .documents
             .compactMap { try? $0.data(as: Event.self) }

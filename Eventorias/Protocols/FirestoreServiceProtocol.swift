@@ -26,6 +26,30 @@ protocol FirestoreServiceProtocol {
     /// - Returns: Sample event if found
     /// - Throws: Error if no matching sample event exists
     func getSampleEvent(eventID: String) throws -> Event
+    
+    // MARK: - Invitation Management
+    
+    /// Create a new invitation in Firestore
+    /// - Parameter invitation: The invitation to create
+    func createInvitation(_ invitation: Invitation) async throws
+    
+    /// Update an existing invitation in Firestore
+    /// - Parameter invitation: The invitation with updated data
+    func updateInvitation(_ invitation: Invitation) async throws
+    
+    /// Delete an invitation from Firestore
+    /// - Parameter invitationId: The ID of the invitation to delete
+    func deleteInvitation(_ invitationId: String) async throws
+    
+    /// Get all invitations for a specific event
+    /// - Parameter eventId: The ID of the event
+    /// - Returns: Array of invitations
+    func getEventInvitations(eventId: String) async throws -> [Invitation]
+    
+    /// Get all invitations where the current user is the invitee
+    /// - Parameter userId: The ID of the user
+    /// - Returns: Array of invitations
+    func getUserInvitations(userId: String) async throws -> [Invitation]
 }
 // Implémentation réelle
 class FirebaseFirestoreService: FirestoreServiceProtocol {
@@ -55,10 +79,67 @@ class FirebaseFirestoreService: FirestoreServiceProtocol {
         }
         return sampleEvent
     }
+    
+    // MARK: - Invitation Management
+    
+    func createInvitation(_ invitation: Invitation) async throws {
+        let invitationRef = db.collection("invitations").document(invitation.id ?? UUID().uuidString)
+        try await invitationRef.setData(from: invitation)
+    }
+    
+    func updateInvitation(_ invitation: Invitation) async throws {
+        guard let id = invitation.id else {
+            throw NSError(
+                domain: "FirebaseFirestoreService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invitation ID is required"]
+            )
+        }
+        
+        let invitationRef = db.collection("invitations").document(id)
+        try await invitationRef.setData(from: invitation, merge: true)
+    }
+    
+    func deleteInvitation(_ invitationId: String) async throws {
+        let invitationRef = db.collection("invitations").document(invitationId)
+        try await invitationRef.delete()
+    }
+    
+    func getEventInvitations(eventId: String) async throws -> [Invitation] {
+        let query = db.collection("invitations")
+            .whereField("eventId", isEqualTo: eventId)
+        
+        let querySnapshot = try await query.getDocuments()
+        var invitations: [Invitation] = []
+        
+        for document in querySnapshot.documents {
+            if let invitation = try? document.data(as: Invitation.self) {
+                invitations.append(invitation)
+            }
+        }
+        
+        return invitations
+    }
+    
+    func getUserInvitations(userId: String) async throws -> [Invitation] {
+        let query = db.collection("invitations")
+            .whereField("inviteeId", isEqualTo: userId)
+        
+        let querySnapshot = try await query.getDocuments()
+        var invitations: [Invitation] = []
+        
+        for document in querySnapshot.documents {
+            if let invitation = try? document.data(as: Invitation.self) {
+                invitations.append(invitation)
+            }
+        }
+        
+        return invitations
+    }
 }
 
-// Mock pour les tests
-class MockFirestoreService: FirestoreServiceProtocol {
+// Implementation simplifiée pour les exemples et tests rapides
+class ExampleFirestoreService: FirestoreServiceProtocol {
     var shouldSucceed: Bool = true
     var mockError: Error?
     var createdEvents: [Event] = []
@@ -110,5 +191,57 @@ class MockFirestoreService: FirestoreServiceProtocol {
         }
         
         return mockEvent
+    }
+    
+    func createInvitation(_ invitation: Invitation) async throws {
+        if !shouldSucceed {
+            if let error = mockError {
+                throw error
+            }
+            throw NSError(domain: "MockFirestoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock error"])
+        }
+        // Simuler création d'invitation
+    }
+    
+    func updateInvitation(_ invitation: Invitation) async throws {
+        if !shouldSucceed {
+            if let error = mockError {
+                throw error
+            }
+            throw NSError(domain: "MockFirestoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock error"])
+        }
+        // Simuler mise à jour d'invitation
+    }
+    
+    func deleteInvitation(_ invitationId: String) async throws {
+        if !shouldSucceed {
+            if let error = mockError {
+                throw error
+            }
+            throw NSError(domain: "MockFirestoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock error"])
+        }
+        // Simuler suppression d'invitation
+    }
+    
+    func getEventInvitations(eventId: String) async throws -> [Invitation] {
+        if !shouldSucceed {
+            if let error = mockError {
+                throw error
+            }
+            throw NSError(domain: "MockFirestoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock error"])
+        }
+        // Simuler récupération des invitations pour un événement
+        return []
+    }
+    
+    func getUserInvitations(userId: String) async throws -> [Invitation] {
+        if !shouldSucceed {
+            if let error = mockError {
+                throw error
+            }
+            throw NSError(domain: "MockFirestoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Mock error"])
+        }
+        // Simuler récupération des invitations pour un utilisateur
+        return []
     }
 }

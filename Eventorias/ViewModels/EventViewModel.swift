@@ -11,6 +11,7 @@ import SwiftUI
 import PhotosUI
 import Observation
 import UIKit
+import UserNotifications
 // Pas besoin d'importer ImageUploadState car il est défini dans le même module
 
 @Observable
@@ -26,6 +27,11 @@ class EventViewModel: EventViewModelProtocol {
     var showingError = false
     var sortOption: SortOption = .dateAscending
     
+    // Filtres et mode d'affichage
+    var selectedCategory: EventCategory? = nil
+    var dateRange: (Date, Date)? = nil
+    var viewMode: ViewMode = .list
+    
     // MARK: - Event Creation Properties
     var eventTitle = ""
     var eventDescription = ""
@@ -37,10 +43,60 @@ class EventViewModel: EventViewModelProtocol {
     
     // MARK: - Private Properties
     private let eventService: EventServiceProtocol
+    private let notificationService: NotificationServiceProtocol
     
     // MARK: - Initialization
-    init(eventService: EventServiceProtocol) {
+    init(eventService: EventServiceProtocol, notificationService: NotificationServiceProtocol) {
         self.eventService = eventService
+        self.notificationService = notificationService
+        
+        Task {
+            await fetchEvents()
+            requestNotificationPermission()
+        }
+    }
+    
+    // MARK: - Notification Methods
+    
+    /// Demande l'autorisation d'envoyer des notifications à l'utilisateur
+    func requestNotificationPermission() {
+        notificationService.requestAuthorization { granted in
+            if granted {
+                print("📱 Notifications autorisées par l'utilisateur")
+                self.scheduleNotificationsForEvents()
+            } else {
+                print("❌ L'utilisateur a refusé les notifications")
+            }
+        }
+    }
+    
+    /// Planifie des notifications pour tous les événements à venir
+    func scheduleNotificationsForEvents() {
+        notificationService.scheduleNotificationsForUpcomingEvents(events: events) { success in
+            if success {
+                print("✅ Notifications planifiées pour les événements à venir")
+            } else {
+                print("⚠️ Échec de la planification des notifications")
+            }
+        }
+    }
+    
+    /// Planifie une notification pour un événement spécifique
+    /// - Parameter event: L'événement pour lequel planifier une notification
+    func scheduleNotificationForEvent(_ event: Event) {
+        notificationService.scheduleEventNotification(for: event, timeInterval: 24 * 60 * 60) { success in
+            if success {
+                print("✅ Notification planifiée pour l'événement: \(event.title)")
+            } else {
+                print("⚠️ Échec de la planification de la notification pour l'événement: \(event.title)")
+            }
+        }
+    }
+    
+    /// Annule toutes les notifications planifiées
+    func cancelAllNotifications() {
+        notificationService.cancelAllNotifications()
+        print("🗑️ Toutes les notifications ont été annulées")
     }
     
     // MARK: - Enums
@@ -48,6 +104,11 @@ class EventViewModel: EventViewModelProtocol {
         case dateAscending = "Date (croissant)"
         case dateDescending = "Date (décroissant)"
         var id: String { self.rawValue }
+    }
+    
+    enum ViewMode {
+        case list
+        case calendar
     }
     
     // MARK: - Private Methods
@@ -105,8 +166,33 @@ class EventViewModel: EventViewModelProtocol {
     
     // MARK: - Computed Properties
     var filteredEvents: [Event] {
-        let filtered = searchText.isEmpty ? events : filterEventsBySearch()
+        // Filtrage par texte
+        var filtered = searchText.isEmpty ? events : filterEventsBySearch()
+        
+        // Filtrage par catégorie
+        if let category = selectedCategory {
+            filtered = filtered.filter { $0.category == category }
+        }
+        
+        // Filtrage par date
+        if let (start, end) = dateRange {
+            filtered = filtered.filter { event in
+                return event.date >= start && event.date <= end
+            }
+        }
+        
+        // Tri final
         return sortEventsByOption(filtered)
+    }
+    
+    // Indique si des filtres sont actifs
+    var hasActiveFilters: Bool {
+        return selectedCategory != nil || dateRange != nil
+    }
+    
+    // Indique si un filtre de date est actif
+    var hasDateFilter: Bool {
+        return dateRange != nil
     }
     
     // MARK: - Public Methods
@@ -114,7 +200,23 @@ class EventViewModel: EventViewModelProtocol {
         await performAction {
             try await ensureSampleEventsExist()
             events = try await fetchSortedEventsFromService()
+            
+            // Planifier les notifications pour les événements chargés
+            await MainActor.run {
+                scheduleNotificationsForEvents()
+            }
         }
+    }
+    
+    // Change le mode d'affichage (liste/calendrier)
+    func toggleViewMode() {
+        viewMode = viewMode == .list ? .calendar : .list
+    }
+    
+    // Réinitialise tous les filtres
+    func resetAllFilters() {
+        selectedCategory = nil
+        dateRange = nil
     }
     
     func refreshEvents() async {
@@ -167,6 +269,12 @@ class EventViewModel: EventViewModelProtocol {
             
             // Recharger les événements et réinitialiser
             await fetchEvents()
+            
+            // Planifier une notification pour le nouvel événement
+            if let newEvent = events.first(where: { $0.id == eventId }) {
+                scheduleNotificationForEvent(newEvent)
+            }
+            
             resetEventFormFields()
             
             return true

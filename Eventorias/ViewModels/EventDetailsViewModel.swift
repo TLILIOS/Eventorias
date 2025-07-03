@@ -18,6 +18,7 @@ final class EventDetailsViewModel: ObservableObject {
     private let geocodingService: GeocodingService
     private let mapNetworkService: MapNetworkService
     private let configurationService: ConfigurationService
+    private let authenticationService: AuthenticationServiceProtocol
     
     /// Mode test pour contrôler le comportement pendant les tests
     private let isTestMode: Bool
@@ -48,6 +49,12 @@ final class EventDetailsViewModel: ObservableObject {
     /// Contrôle l'affichage de l'erreur
     @Published var showingError = false
     
+    /// ViewModel pour la gestion des invitations
+    @Published var invitationViewModel: InvitationViewModel?
+    
+    /// Indique si l'utilisateur courant est l'organisateur de l'événement
+    @Published var isOrganizer = false
+    
     // MARK: - Initialization
     
     /// Initialisation avec injection de dépendances
@@ -62,6 +69,7 @@ final class EventDetailsViewModel: ObservableObject {
          geocodingService: GeocodingService,
          mapNetworkService: MapNetworkService,
          configurationService: ConfigurationService,
+         authenticationService: AuthenticationServiceProtocol,
          isTestMode: Bool = false,
          shouldAutoGeocode: Bool = true) {
         
@@ -69,8 +77,12 @@ final class EventDetailsViewModel: ObservableObject {
         self.geocodingService = geocodingService
         self.mapNetworkService = mapNetworkService
         self.configurationService = configurationService
+        self.authenticationService = authenticationService
         self.isTestMode = isTestMode || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         self.shouldAutoGeocode = shouldAutoGeocode
+        
+        // Initialisation du ViewModel des invitations
+        self.invitationViewModel = InvitationViewModel(firestoreService: firestoreService, authService: authenticationService)
     }
     
     // MARK: - Public Methods
@@ -81,6 +93,7 @@ final class EventDetailsViewModel: ObservableObject {
         isLoading = true
         errorMessage = ""
         showingError = false
+        isOrganizer = false
         coordinates = nil
         mapImageURL = nil
         
@@ -100,6 +113,17 @@ final class EventDetailsViewModel: ObservableObject {
                 print("📱 EventDetailsViewModel: Événement trouvé dans Firestore")
                 let fetchedEvent = try documentSnapshot.data(as: Event.self)
                 event = fetchedEvent
+                
+                // Vérifier si l'utilisateur est l'organisateur de l'événement
+                checkIfUserIsOrganizer(fetchedEvent)
+                
+                // Charger les invitations pour cet événement
+                if let invitationVM = invitationViewModel {
+                    let _ = Task<Void, Never> {
+                        // Appel explicite à la méthode avec le type exact du paramètre
+                        await (invitationVM as AbstractInvitationViewModel).loadInvitations(for: eventID)
+                    }
+                }
                 
                 // Géocodage automatique seulement si activé (pas en mode test par défaut)
                 if shouldAutoGeocode {
@@ -235,6 +259,18 @@ final class EventDetailsViewModel: ObservableObject {
     }
     
     /// Optimise l'URL de la carte et vérifie sa validité
+    /// Vérifie si l'utilisateur courant est l'organisateur de l'événement
+    /// - Parameter event: L'événement à vérifier
+    private func checkIfUserIsOrganizer(_ event: Event) {
+        guard let currentUserId = authenticationService.currentUser?.uid else {
+            isOrganizer = false
+            return
+        }
+        
+        isOrganizer = event.organizer == currentUserId
+        print("📱 EventDetailsViewModel: Utilisateur est organisateur: \(isOrganizer)")
+    }
+    
     private func validateAndPreloadMapImage() {
         guard let url = mapImageURL else {
             print("❌ EventDetailsViewModel: Aucune URL de carte disponible")

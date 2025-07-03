@@ -9,45 +9,44 @@ import Foundation
 import FirebaseAuth
 
 /// Implémentation Firebase du service d'authentification
-final class FirebaseAuthenticationService: AuthenticationServiceProtocol {
+final class FirebaseAuthenticationService: AuthenticationServiceProtocol, AuthServiceInjectable {
+    // Fournisseur d'authentification - permet l'injection de dépendances pour les tests
+    private var authProvider: AuthProviderProtocol = FirebaseAuthAdapter.fromSharedAuth()
+    
+    /// Permet d'injecter un fournisseur d'authentification alternatif (pour les tests)
+    func injectAuthProvider(_ provider: AuthProviderProtocol) {
+        self.authProvider = provider
+    }
     var currentUser: UserProtocol? {
-        if let user = Auth.auth().currentUser {
-            return FirebaseUserAdapter(user)
-        }
-        return nil
+        return authProvider.currentUser
     }
     
     var currentUserDisplayName: String {
-        Auth.auth().currentUser?.displayName ?? "Utilisateur anonyme"
+        authProvider.currentUser?.displayName ?? "Utilisateur anonyme"
     }
     
     var currentUserEmail: String? {
-        Auth.auth().currentUser?.email
+        authProvider.currentUser?.email
     }
     
     func signIn(email: String, password: String) async throws -> AuthDataResultProtocol {
-        let result = try await Auth.auth().signIn(withEmail: email, password: password)
-        return FirebaseAuthDataResultAdapter(result)
+        return try await authProvider.signIn(withEmail: email, password: password)
     }
     
     func signUp(email: String, password: String) async throws -> AuthDataResultProtocol {
-        let result = try await Auth.auth().createUser(withEmail: email, password: password)
-        return FirebaseAuthDataResultAdapter(result)
+        return try await authProvider.createUser(withEmail: email, password: password)
     }
     
     func signOut() throws {
-        try Auth.auth().signOut()
+        try authProvider.signOut()
     }
     
     func getCurrentUser() -> UserProtocol? {
-        if let user = Auth.auth().currentUser {
-            return FirebaseUserAdapter(user)
-        }
-        return nil
+        return authProvider.getCurrentUser()
     }
     
     func isUserAuthenticated() -> Bool {
-        return Auth.auth().currentUser != nil
+        return authProvider.isUserAuthenticated()
     }
     
     func isValidEmail(_ email: String) -> Bool {
@@ -66,26 +65,23 @@ final class FirebaseAuthenticationService: AuthenticationServiceProtocol {
     ///   - photoURL: URL de la photo de profil (optionnel)
     /// - Throws: Erreur d'authentification
     func updateUserProfile(displayName: String?, photoURL: URL?) async throws {
-        guard let _ = currentUser, let firebaseUser = Auth.auth().currentUser else {
+        guard currentUser != nil else {
             throw NSError(domain: "AuthError", code: 401, userInfo: [NSLocalizedDescriptionKey: "Aucun utilisateur connecté"])
         }
         
-        let changeRequest = firebaseUser.createProfileChangeRequest()
-        
-        if let displayName = displayName {
-            changeRequest.displayName = displayName
-        }
-        
-        if let photoURL = photoURL {
-            changeRequest.photoURL = photoURL
-        }
-        
-        try await changeRequest.commitChanges()
+        try await authProvider.updateUserProfile(displayName: displayName, photoURL: photoURL)
     }
     
     /// Supprime le compte utilisateur actuellement connecté
     /// - Throws: Erreur d'authentification (par exemple, ré-authentification requise)
     func deleteAccount() async throws {
+        guard let _ = authProvider.currentUser else {
+            throw NSError(domain: "AuthError", code: 401, userInfo: [NSLocalizedDescriptionKey: "Aucun utilisateur connecté"])
+        }
+        
+        // Note: Cette méthode n'est pas dans AuthProviderProtocol
+        // Dans une implémentation réelle, nous devrions l'ajouter au protocole
+        // Pour l'instant, nous utilisons directement l'API Firebase
         guard let firebaseUser = Auth.auth().currentUser else {
             throw NSError(domain: "AuthError", code: 401, userInfo: [NSLocalizedDescriptionKey: "Aucun utilisateur connecté"])
         }
@@ -97,6 +93,9 @@ final class FirebaseAuthenticationService: AuthenticationServiceProtocol {
     /// - Parameter email: L'adresse email pour réinitialiser le mot de passe
     /// - Throws: Erreur d'authentification
     func resetPassword(email: String) async throws {
+        // Note: Cette méthode n'est pas dans AuthProviderProtocol
+        // Dans une implémentation réelle, nous devrions l'ajouter au protocole
+        // Pour l'instant, nous utilisons directement l'API Firebase
         try await Auth.auth().sendPasswordReset(withEmail: email)
     }
 }

@@ -55,7 +55,7 @@ final class MockEventService: EventServiceProtocol {
     }
     
     /// Filters events by category
-    func filterEventsByCategory(category: String) async throws -> [Event] {
+    func filterEventsByCategory(category: EventCategory) async throws -> [Event] {
         filterEventsByCategoryCalled = true
         
         if shouldThrowError {
@@ -129,7 +129,7 @@ final class MockEventService: EventServiceProtocol {
             organizer: "Test Organizer",
             organizerImageURL: nil,
             imageURL: imageURL,
-            category: "Autre",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )

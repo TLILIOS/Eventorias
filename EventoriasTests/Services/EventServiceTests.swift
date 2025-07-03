@@ -36,7 +36,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur test",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )
@@ -50,7 +50,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur test",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )
@@ -98,7 +98,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Musique",
+            category: .music,
             tags: ["Musique"],
             createdAt: Date()
         )
@@ -112,7 +112,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Art",
+            category: .art,
             tags: ["Art"],
             createdAt: Date()
         )
@@ -144,7 +144,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Musique",
+            category: .music,
             tags: ["Musique"],
             createdAt: Date()
         )
@@ -158,7 +158,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Art",
+            category: .art,
             tags: ["Art"],
             createdAt: Date()
         )
@@ -191,7 +191,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Musique",
+            category: .music,
             tags: ["Musique"],
             createdAt: Date()
         )
@@ -205,7 +205,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Art",
+            category: .art,
             tags: ["Art"],
             createdAt: Date()
         )
@@ -215,7 +215,7 @@ final class EventServiceTests: XCTestCase {
         
         // Act
         do {
-            let events = try await mockEventService.filterEventsByCategory(category: "Musique")
+            let events = try await mockEventService.filterEventsByCategory(category: .music)
             
             // Assert
             XCTAssertTrue(mockEventService.filterEventsByCategoryCalled, "La méthode filterEventsByCategory n'a pas été appelée")
@@ -239,7 +239,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )
@@ -253,7 +253,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )
@@ -286,7 +286,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )
@@ -300,7 +300,7 @@ final class EventServiceTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: .other,
             tags: ["Test"],
             createdAt: Date()
         )

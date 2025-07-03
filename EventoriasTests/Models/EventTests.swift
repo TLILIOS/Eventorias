@@ -22,7 +22,7 @@ class EventTests: XCTestCase {
             organizer: "Test Organizer",
             organizerImageURL: "https://example.com/organizer.jpg",
             imageURL: "https://example.com/event.jpg",
-            category: "Test Category",
+            category: .other,
             tags: ["test", "event", "unit test"],
             createdAt: now
         )
@@ -35,7 +35,7 @@ class EventTests: XCTestCase {
         XCTAssertEqual(event.organizer, "Test Organizer")
         XCTAssertEqual(event.organizerImageURL, "https://example.com/organizer.jpg")
         XCTAssertEqual(event.imageURL, "https://example.com/event.jpg")
-        XCTAssertEqual(event.category, "Test Category")
+        XCTAssertEqual(event.category, .other)
         XCTAssertEqual(event.tags, ["test", "event", "unit test"])
         XCTAssertEqual(event.createdAt, now)
     }
@@ -59,7 +59,7 @@ class EventTests: XCTestCase {
             organizer: "Test Organizer",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test Category",
+            category: .other,
             tags: nil,
             createdAt: now
         )
@@ -77,11 +77,11 @@ class EventTests: XCTestCase {
         // Test properties of a few sample events
         XCTAssertEqual(samples[0].id, "2")
         XCTAssertEqual(samples[0].title, "Art exhibition")
-        XCTAssertEqual(samples[0].category, "Art")
+        XCTAssertEqual(samples[0].category, .art)
         
         XCTAssertEqual(samples[1].id, "3")
         XCTAssertEqual(samples[1].title, "Tech conference")
-        XCTAssertEqual(samples[1].category, "Technologie")
+        XCTAssertEqual(samples[1].category, .technology)
     }
     
     // Test optional fields
@@ -95,7 +95,7 @@ class EventTests: XCTestCase {
             organizer: "Test Organizer",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test Category",
+            category: .other,
             tags: nil,
             createdAt: Date()
         )

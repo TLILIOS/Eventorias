@@ -48,7 +48,7 @@ final class EventServiceProtocolTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Test",
+            category: EventCategory.fromString("Test"),
             tags: ["Test"],
             createdAt: Date()
         )
@@ -62,7 +62,7 @@ final class EventServiceProtocolTests: XCTestCase {
             organizer: "Organisateur",
             organizerImageURL: nil,
             imageURL: nil,
-            category: "Autre",
+            category: EventCategory.fromString("Autre"),
             tags: ["Autre"],
             createdAt: Date()
         )
@@ -82,7 +82,7 @@ final class EventServiceProtocolTests: XCTestCase {
         // Test comportement polymorphique - filterEventsByCategory
         for (index, service) in eventServices.enumerated() {
             do {
-                let events = try await service.filterEventsByCategory(category: "Test")
+                let events = try await service.filterEventsByCategory(category: EventCategory.fromString("Test"))
                 XCTAssertEqual(events.count, 1, "L'implémentation \(index) devrait retourner 1 événement pour la catégorie 'Test'")
                 XCTAssertEqual(events.first?.id, "event1", "L'implémentation \(index) devrait retourner l'événement avec l'ID 'event1'")
             } catch {

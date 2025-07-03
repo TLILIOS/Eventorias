@@ -11,13 +11,17 @@ import CoreLocation
 import MapKit
 @testable import Eventorias
 
+// Désambigüïsation explicite du mock
+typealias TestFirestoreService = MockFirestoreService
+
 @MainActor
 class EventDetailsViewModelTests: XCTestCase {
     
     // MARK: - Properties
     
     private var viewModel: EventDetailsViewModel!
-    private var mockFirestoreService: MockFirestoreService!
+    // Utilisation de l'alias pour éviter l'ambiguïté
+    private var mockFirestoreService: TestFirestoreService!
     private var mockGeocodingService: MockGeocodingService!
     private var mockMapNetworkService: MockMapNetworkService!
     private var mockConfigurationService: MockConfigurationService!
@@ -28,7 +32,8 @@ class EventDetailsViewModelTests: XCTestCase {
     override func setUp() {
         super.setUp()
         
-        mockFirestoreService = MockFirestoreService()
+        // Utilisation de l'alias TestFirestoreService
+        mockFirestoreService = TestFirestoreService()
         mockGeocodingService = MockGeocodingService()
         mockMapNetworkService = MockMapNetworkService()
         mockConfigurationService = MockConfigurationService()
