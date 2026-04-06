@@ -13,13 +13,8 @@ struct SignInView: View {
     @State private var hasLoadedCredentials = false
     
     init() {
-        // Utiliser le container de dépendances pour créer le ViewModel
         let container = AppDependencyContainer.shared
         self._viewModel = StateObject(wrappedValue: container.makeAuthenticationViewModel())
-        
-        // Charger les identifiants avant le chargement de la vue
-        let tempViewModel = container.makeAuthenticationViewModel()
-        tempViewModel.loadStoredCredentials()
     }
     
     var body: some View {
@@ -42,8 +37,6 @@ struct SignInView: View {
                     
                     // Sign in with email button
                     Button(action: {
-                        // Charger les identifiants juste avant d'afficher l'écran de connexion
-                        viewModel.loadStoredCredentials()
                         showingEmailSignIn = true
                     }) {
                         HStack {
@@ -72,14 +65,19 @@ struct SignInView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "An error occurred")
             }
-            //!!!!!
             .navigationDestination(isPresented: $viewModel.userIsLoggedIn) {
                 EventList()
                     .environmentObject(viewModel)
             }
-            .onAppear {
-                viewModel.loadStoredCredentials()
+            .task {
+                await viewModel.loadStoredCredentialsAsync()
                 hasLoadedCredentials = true
+            }
+            .onChange(of: viewModel.userIsLoggedIn) { _, isLoggedIn in
+                if isLoggedIn {
+                    // Fermer la sheet de connexion si elle est ouverte
+                    showingEmailSignIn = false
+                }
             }
         }
     }

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/macbookair/Desktop/OC_Projects_24/P14/Eventorias show HEAD:Eventorias/GoogleService-Info.plist)",
+      "Bash(git:*)",
+      "Bash(grep -E \"\\\\.\\(swift|m|h\\)$\")",
+      "Bash(xcodebuild -project Eventorias.xcodeproj -scheme Eventorias -destination 'platform=iOS Simulator,name=iPhone 16' -quiet build)",
+      "Bash(xcodebuild -project Eventorias.xcodeproj -scheme Eventorias -destination 'platform=iOS Simulator,id=A7EA5FC5-3555-4EE4-ABB0-3DBF0169E15B' build)",
+      "Bash(xcodebuild -project Eventorias.xcodeproj -scheme Eventorias -destination 'platform=iOS Simulator,id=A7EA5FC5-3555-4EE4-ABB0-3DBF0169E15B' build-for-testing)"
+    ]
+  }
+}

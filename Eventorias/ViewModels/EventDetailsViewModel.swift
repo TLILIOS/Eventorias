@@ -163,7 +163,7 @@ final class EventDetailsViewModel: ObservableObject {
         }
         
         // Si les coordonnées existent déjà, générer directement l'URL
-        if let existingCoordinates = coordinates {
+        if coordinates != nil {
             print("✅ EventDetailsViewModel: Utilisation des coordonnées existantes")
             generateMapImageURL()
             return
@@ -290,7 +290,7 @@ final class EventDetailsViewModel: ObservableObject {
                     self?.showingError = false
                 case .failure(let error):
                     if let mapError = error as? MapError {
-                        print("❌ EventDetailsViewModel: Erreur de validation de carte - \(mapError.localizedDescription ?? "Erreur inconnue")")
+                        print("❌ EventDetailsViewModel: Erreur de validation de carte - \(mapError.localizedDescription)")
                         self?.handleMapError(mapError)
                     } else {
                         print("❌ EventDetailsViewModel: Erreur inattendue - \(error.localizedDescription)")

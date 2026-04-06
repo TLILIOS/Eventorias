@@ -11,7 +11,7 @@
 import SwiftUI
 
 struct EventSearchBar: View {
-    var backgroundColor: Color = Color("DarkGray")
+    var backgroundColor: Color = Color("EventDarkGray")
     let eventViewModel: EventViewModel
     @FocusState private var isSearchFocused: Bool
     

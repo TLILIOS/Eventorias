@@ -222,14 +222,14 @@ struct DayCell: View {
             VStack {
                 Text("\(Calendar.current.component(.day, from: date))")
                     .font(.system(size: 16, weight: isSelected ? .bold : .regular))
-                    .foregroundColor(isToday ? Color("Red") : (isSelected ? .white : .gray))
+                    .foregroundColor(isToday ? Color("EventRed") : (isSelected ? .white : .gray))
                     .frame(width: 35, height: 35)
                     .background(isSelected ? Color.gray.opacity(0.3) : Color.clear)
                     .clipShape(Circle())
                 
                 if hasEvents {
                     Circle()
-                        .fill(Color("Red"))
+                        .fill(Color("EventRed"))
                         .frame(width: 6, height: 6)
                 } else {
                     Circle()

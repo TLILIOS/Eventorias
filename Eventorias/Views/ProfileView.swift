@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 import FirebaseAuth
 
 struct ProfileView: View {
@@ -13,6 +14,7 @@ struct ProfileView: View {
     @StateObject private var profileViewModel: ProfileViewModel
     @State private var notificationsEnabled = true
     @State private var showingSignOutAlert = false
+    @State private var photoItem: PhotosPickerItem?
     @Binding var selectedTab: Int
     
     init(selectedTab: Binding<Int>) {
@@ -31,6 +33,17 @@ struct ProfileView: View {
         }
     }
     
+    private var avatarPlaceholder: some View {
+        Circle()
+            .fill(Color.gray.opacity(0.3))
+            .overlay(
+                Image(systemName: "person.fill")
+                    .foregroundColor(.white)
+                    .font(.system(size: 20))
+            )
+            .frame(width: 50, height: 50)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -46,48 +59,37 @@ struct ProfileView: View {
                         
                         Spacer()
                         
-                        // Avatar circulaire
-                        if let avatarUrl = profileViewModel.avatarUrl {
-                            AsyncImage(url: avatarUrl) { phase in
-                                switch phase {
-                                case .empty:
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .overlay(
-                                            Image(systemName: "person.fill")
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 20))
-                                        )
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                case .failure:
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .overlay(
-                                            Image(systemName: "person.fill")
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 20))
-                                        )
-                                @unknown default:
-                                    EmptyView()
+                        // Avatar circulaire — cliquable pour changer la photo
+                        PhotosPicker(selection: $photoItem, matching: .images) {
+                            ZStack(alignment: .bottomTrailing) {
+                                if let avatarUrl = profileViewModel.avatarUrl {
+                                    AsyncImage(url: avatarUrl) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            avatarPlaceholder
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                        case .failure:
+                                            avatarPlaceholder
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                    .frame(width: 50, height: 50)
+                                    .clipShape(Circle())
+                                } else {
+                                    avatarPlaceholder
                                 }
+
+                                Image(systemName: "pencil.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .background(Circle().fill(Color("EventRed")).frame(width: 18, height: 18))
                             }
-                            .frame(width: 50, height: 50)
-                            .clipShape(Circle())
-                            .accessibilityLabel("Photo de profil de \(profileViewModel.displayName)")
-                        } else {
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 20))
-                                )
-                                .frame(width: 50, height: 50)
-                                .accessibilityLabel("Photo de profil par défaut")
                         }
+                        .accessibilityLabel("Modifier la photo de profil")
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 20)
@@ -155,7 +157,7 @@ struct ProfileView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                             .frame(height: 56)
-                            .background(Color("DarkGray"))
+                            .background(Color("EventDarkGray"))
                             .cornerRadius(12)
                             .padding(.horizontal, 16)
                         }
@@ -177,7 +179,7 @@ struct ProfileView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(Color("DarkGray"))
+                        .background(Color("EventDarkGray"))
                         .cornerRadius(10)
                     }
                     .padding(.horizontal, 16)
@@ -189,12 +191,19 @@ struct ProfileView: View {
             .navigationBarHidden(true)
             .accessibilityElement(children: .contain)
             .onAppear {
-                // Utiliser le container de dépendances pour créer le ViewModel
-                let container = AppDependencyContainer.shared
                 // Configurer le ProfileViewModel avec l'authViewModel injecté
                 profileViewModel.updateAuthenticationViewModel(authViewModel)
                 // Forcer le rechargement des données du profil
                 profileViewModel.loadUserProfile()
+            }
+            .onChange(of: photoItem) { _, newItem in
+                guard let newItem else { return }
+                Task {
+                    if let data = try? await newItem.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        await profileViewModel.updateProfilePhoto(image)
+                    }
+                }
             }
             .alert("Déconnexion", isPresented: $showingSignOutAlert) {
                 Button("Annuler", role: .cancel) { }

@@ -44,34 +44,37 @@ class EventViewModel: EventViewModelProtocol {
     // MARK: - Private Properties
     private let eventService: EventServiceProtocol
     private let notificationService: NotificationServiceProtocol
-    
+    private var hasRequestedNotificationPermission = false
+    private var hasScheduledNotifications = false
+
     // MARK: - Initialization
     init(eventService: EventServiceProtocol, notificationService: NotificationServiceProtocol) {
         self.eventService = eventService
         self.notificationService = notificationService
-        
-        Task {
-            await fetchEvents()
-            requestNotificationPermission()
-        }
     }
     
     // MARK: - Notification Methods
     
-    /// Demande l'autorisation d'envoyer des notifications à l'utilisateur
+    /// Demande l'autorisation d'envoyer des notifications à l'utilisateur (une seule fois)
     func requestNotificationPermission() {
-        notificationService.requestAuthorization { granted in
+        guard !hasRequestedNotificationPermission else { return }
+        hasRequestedNotificationPermission = true
+
+        notificationService.requestAuthorization { [weak self] granted in
             if granted {
                 print("📱 Notifications autorisées par l'utilisateur")
-                self.scheduleNotificationsForEvents()
+                self?.scheduleNotificationsForEvents()
             } else {
                 print("❌ L'utilisateur a refusé les notifications")
             }
         }
     }
-    
-    /// Planifie des notifications pour tous les événements à venir
+
+    /// Planifie des notifications pour tous les événements à venir (une seule fois par chargement)
     func scheduleNotificationsForEvents() {
+        guard !hasScheduledNotifications, !events.isEmpty else { return }
+        hasScheduledNotifications = true
+
         notificationService.scheduleNotificationsForUpcomingEvents(events: events) { success in
             if success {
                 print("✅ Notifications planifiées pour les événements à venir")
@@ -200,11 +203,12 @@ class EventViewModel: EventViewModelProtocol {
         await performAction {
             try await ensureSampleEventsExist()
             events = try await fetchSortedEventsFromService()
-            
-            // Planifier les notifications pour les événements chargés
-            await MainActor.run {
-                scheduleNotificationsForEvents()
-            }
+        }
+
+        // Planifier les notifications une seule fois après le premier chargement réussi
+        if !events.isEmpty {
+            scheduleNotificationsForEvents()
+            requestNotificationPermission()
         }
     }
     

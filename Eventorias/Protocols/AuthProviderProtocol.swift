@@ -9,6 +9,7 @@ import Foundation
 import FirebaseAuth
 
 /// Protocole définissant les opérations d'authentification utilisateur
+@MainActor
 public protocol AuthProviderProtocol {
     /// L'utilisateur actuellement connecté, ou nil si aucun
     var currentUser: UserProtocol? { get }

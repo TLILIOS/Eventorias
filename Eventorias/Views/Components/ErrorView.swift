@@ -52,7 +52,7 @@ struct ErrorView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color("Red"))
+                    .background(Color("EventRed"))
                     .cornerRadius(8)
                     .padding(.horizontal, 100)
                 }

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct EventRowView: View {
     let event: Event
-    var backgroundColor: Color = Color("DarkGray")
+    var backgroundColor: Color = Color("EventDarkGray")
     var body: some View {
         HStack(spacing: 12) {
             // Photo de profil circulaire
@@ -94,8 +94,7 @@ struct EventRowView: View {
     }
 }
 
-#Preview {
+#Preview(traits: .sizeThatFitsLayout) {
     EventRowView(event: Event.sampleEvents[0])
-        .previewLayout(.sizeThatFits)
         .padding()
 }

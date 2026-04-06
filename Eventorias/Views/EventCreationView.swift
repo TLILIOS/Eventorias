@@ -96,7 +96,7 @@ struct EventCreationView: View {
             CameraView(image: $selectedImage)
                 .edgesIgnoringSafeArea(.all)
         }
-        .onChange(of: selectedImage) { newImage in
+        .onChange(of: selectedImage) { _, newImage in
             print("⚠️ DEBUG: selectedImage changée - image présente: \(newImage != nil)")
             viewModel.eventImage = newImage
         }
@@ -127,13 +127,13 @@ struct EventCreationView: View {
         VStack(spacing: 25) {
             // Title field
             StyledTextField(placeholder: "New event", text: $title)
-                .onChange(of: title) { newValue in
+                .onChange(of: title) { _, newValue in
                     viewModel.eventTitle = newValue
                 }
-            
+
             // Description field
             StyledTextEditor(text: $description)
-                .onChange(of: description) { newValue in
+                .onChange(of: description) { _, newValue in
                     viewModel.eventDescription = newValue
                 }
             
@@ -144,13 +144,13 @@ struct EventCreationView: View {
                 showTimeSelector: true
             )
             .environment(\.locale, Locale(identifier: "en_US"))
-            .onChange(of: date) { newValue in
+            .onChange(of: date) { _, newValue in
                 viewModel.eventDate = newValue
             }
-            
+
             // Address field
             StyledTextField(placeholder: "Enter full address", text: $address)
-                .onChange(of: address) { newValue in
+                .onChange(of: address) { _, newValue in
                     viewModel.eventAddress = newValue
                 }
                 
@@ -163,7 +163,7 @@ struct EventCreationView: View {
                 
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color("DarkGray"))
+                        .fill(Color("EventDarkGray"))
                         .frame(height: 56)
                     
                     Picker("Catégorie", selection: $selectedCategory) {
@@ -178,7 +178,7 @@ struct EventCreationView: View {
                     .pickerStyle(MenuPickerStyle())
                     .accentColor(.white)
                     .padding(.horizontal, 16)
-                    .onChange(of: selectedCategory) { newValue in
+                    .onChange(of: selectedCategory) { _, newValue in
                         viewModel.eventCategory = newValue
                     }
                 }
@@ -213,7 +213,7 @@ struct EventCreationView: View {
                         .padding(12)
                         .frame(width: 52, height: 52)
                         .foregroundColor(.white)
-                        .background(Color("Red"))
+                        .background(Color("EventRed"))
                         .clipShape(Circle())
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -242,7 +242,7 @@ struct EventCreationView: View {
                         .padding(12)
                         .frame(width: 52, height: 52)
                         .foregroundColor(.white)
-                        .background(Color("Red"))
+                        .background(Color("EventRed"))
                         .clipShape(Circle())
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -279,7 +279,7 @@ struct EventCreationView: View {
                                 switch viewModel.imageUploadState {
                                 case .uploading(let progress):
                                     ProgressView(value: progress, total: 1.0)
-                                        .progressViewStyle(LinearProgressViewStyle(tint: Color("Red")))
+                                        .progressViewStyle(LinearProgressViewStyle(tint: Color("EventRed")))
                                         .padding()
                                         .background(Color.black.opacity(0.5))
                                 case .failure:
@@ -324,7 +324,7 @@ struct EventCreationView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color("Red"))
+                .background(Color("EventRed"))
                 .cornerRadius(5)
         }
         .padding()
@@ -333,7 +333,7 @@ struct EventCreationView: View {
     // MARK: - Methods
     
     private func submitEvent() async {
-        print("⚠️ DEBUG: Début submitEvent - Thread: \(Thread.current.isMainThread ? "Main" : "Background")")
+        print("⚠️ DEBUG: Début submitEvent")
         print("⚠️ DEBUG: État avant soumission - Image: \(selectedImage != nil), Adresse: \(address)")
         
         // Appel à la méthode du ViewModel pour créer l'événement

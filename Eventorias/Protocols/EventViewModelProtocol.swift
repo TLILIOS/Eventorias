@@ -10,9 +10,6 @@ import SwiftUI
 import Combine
 import UIKit
 
-// Assurons-nous que l'énumération est accessible
-import Eventorias
-
 /// Protocole définissant les fonctionnalités requises d'un EventViewModel
 protocol EventViewModelProtocol: ObservableObject {
     // MARK: - Associated Types

@@ -68,7 +68,7 @@ struct EventsListContent: View {
             .foregroundColor(.white)
             .padding(.vertical, 10)
             .padding(.horizontal, 20)
-            .background(Color("Red"))
+            .background(Color("EventRed"))
             .cornerRadius(8)
         }
         .padding(40)

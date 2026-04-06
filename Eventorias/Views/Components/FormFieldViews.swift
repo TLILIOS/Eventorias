@@ -59,7 +59,7 @@ struct StyledTextEditor: View {
         var minHeight: CGFloat = 56
         var maxHeight: CGFloat? = nil
         var cornerRadius: CGFloat = 12
-        var backgroundColor: Color = Color("DarkGray")
+        var backgroundColor: Color = Color("EventDarkGray")
         var textColor: Color = .white
         var placeholderColor: Color = .gray
         var borderWidth: CGFloat = 2
@@ -288,7 +288,7 @@ struct StyledTextField: View {
     struct Configuration {
         var height: CGFloat = 56
         var cornerRadius: CGFloat = 12
-        var backgroundColor: Color = Color("DarkGray")
+        var backgroundColor: Color = Color("EventDarkGray")
         var textColor: Color = .white
         var placeholderColor: Color = .gray
         var horizontalPadding: CGFloat = 16
@@ -303,12 +303,14 @@ struct StyledTextField: View {
     let placeholder: String
     @Binding var text: String
     var configuration = Configuration()
-    
+
     // Functional Properties
     var isSecure: Bool = false
-    var showPasswordToggle: Bool = false // ✅ Nouveau paramètre
+    var showPasswordToggle: Bool = false
     var keyboardType: UIKeyboardType = .default
     var textContentType: UITextContentType? = nil
+    var autocapitalization: TextInputAutocapitalization? = nil
+    var disableAutocorrection: Bool = false
     var submitLabel: SubmitLabel = .done
     var isDisabled: Bool = false
     var maxLength: Int? = nil
@@ -375,15 +377,18 @@ struct StyledTextField: View {
                 if isSecure && !isPasswordVisible {
                     SecureField(placeholder, text: $text)
                         .textFieldStyle()
+                        .textContentType(textContentType)
                 } else {
                     TextField(placeholder, text: $text)
                         .textFieldStyle()
+                        .keyboardType(keyboardType)
+                        .textContentType(textContentType)
+                        .textInputAutocapitalization(autocapitalization)
+                        .autocorrectionDisabled(disableAutocorrection)
                 }
             }
             .focused($isFocused)
             .disabled(isDisabled)
-            .keyboardType(keyboardType)
-            .textContentType(textContentType)
             .submitLabel(submitLabel)
             .onSubmit {
                 onCommit?()
@@ -460,7 +465,7 @@ struct StyledDatePicker: View {
     struct Configuration {
         var height: CGFloat = 56
         var cornerRadius: CGFloat = 12
-        var backgroundColor: Color = Color("DarkGray")
+        var backgroundColor: Color = Color("EventDarkGray")
         var textColor: Color = .white
         var borderWidth: CGFloat = 2
         var focusedBorderColor: Color = .blue

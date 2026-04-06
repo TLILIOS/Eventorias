@@ -99,7 +99,7 @@ final class EventCreationViewModel: ObservableObject {
         
         // Capturer les informations d'utilisateur avant les opérations
         let organizer = authService.currentUserDisplayName
-        let organizerEmail = authService.currentUserEmail ?? "email@non-renseigne.com"
+        _ = authService.currentUserEmail ?? "email@non-renseigne.com"
         
         // Upload de l'image si elle existe
         if let image = eventImage {

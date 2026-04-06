@@ -100,7 +100,7 @@ struct AddInvitationView: View {
                                 Spacer()
                             }
                             .padding()
-                            .background(Color("Red"))
+                            .background(Color("EventRed"))
                             .cornerRadius(10)
                             .foregroundColor(.white)
                         }

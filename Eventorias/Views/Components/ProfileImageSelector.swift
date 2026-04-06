@@ -12,7 +12,7 @@ struct ProfileImageSelector: View {
     @Binding var selectedImage: UIImage?
     @State private var photoItem: PhotosPickerItem?
     @State private var isShowingPhotoPicker = false
-    var backgroundColor: Color = Color("DarkGray")
+    var backgroundColor: Color = Color("EventDarkGray")
 
     var body: some View {
         HStack {
@@ -42,7 +42,7 @@ struct ProfileImageSelector: View {
                     HStack {
                         Spacer()
                         Circle()
-                            .fill(Color("Red"))
+                            .fill(Color("EventRed"))
                             .frame(width: 22, height: 22)
                             .overlay(
                                 Image(systemName: "camera.fill")
@@ -64,7 +64,7 @@ struct ProfileImageSelector: View {
                 }) {
                     Text("Sélectionner une photo")
                         .font(.subheadline)
-                        .foregroundColor(Color("Red"))
+                        .foregroundColor(Color("EventRed"))
                 }
                 
                 if selectedImage != nil {

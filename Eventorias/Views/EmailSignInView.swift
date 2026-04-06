@@ -8,21 +8,21 @@
 import SwiftUI
 import PhotosUI
 
+@MainActor
 struct EmailSignInView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var viewModel: AuthenticationViewModel
     @State private var isSignUpMode = false
     @State private var photoItem: PhotosPickerItem?
-    @State private var localPassword = "" // État local pour le mot de passe
-    @State private var showError = false // État pour contrôler l'affichage de l'alerte d'erreur
-    var backgroundColor: Color = Color("DarkGray")
+    @State private var localEmail = ""
+    @State private var localPassword = ""
+    @State private var localUsername = ""
+    @State private var showError = false
+    var backgroundColor: Color = Color("EventDarkGray")
 
-    // Utiliser @AppStorage pour accéder directement à l'email et au nom d'utilisateur
-    @AppStorage("lastUserEmail") private var storedEmail: String = ""
-    @AppStorage("lastUsername") private var storedUsername: String = ""
     // Computed property for form validation
     private var isFormValid: Bool {
-        !viewModel.email.isEmpty && localPassword.count >= 6
+        !localEmail.isEmpty && localPassword.count >= 6
     }
     
     var body: some View {
@@ -65,7 +65,7 @@ struct EmailSignInView: View {
                 }
             }
             .disabled(viewModel.isLoading)
-            .onChange(of: viewModel.errorMessage) { newError in
+            .onChange(of: viewModel.errorMessage) { _, newError in
                 showError = newError != nil
             }
             .alert("Erreur", isPresented: $showError) {
@@ -77,24 +77,11 @@ struct EmailSignInView: View {
                     Text(errorMessage)
                 }
             }
-            .onChange(of: viewModel.userIsLoggedIn) { _, isAuthenticated in
-                if isAuthenticated {
-                    dismiss()
-                }
-            }
-            .onAppear {
-                // Synchroniser les valeurs stockées avec le ViewModel
-                if !storedEmail.isEmpty {
-                    viewModel.email = storedEmail
-                }
-                if !storedUsername.isEmpty && isSignUpMode {
-                    viewModel.username = storedUsername
-                }
-                // Charger email et username uniquement depuis loadStoredCredentials
-                viewModel.loadStoredCredentials()
-                
-                // Le chargement automatique du mot de passe a été supprimé
-                // pour éviter les problèmes de saisie
+            .task {
+                await viewModel.loadStoredCredentialsAsync()
+                localEmail = viewModel.email
+                localPassword = viewModel.password
+                localUsername = viewModel.username
             }
             .onChange(of: photoItem) { _, newItem in
             Task {
@@ -129,17 +116,17 @@ struct EmailSignInView: View {
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.gray)
                 
-                StyledTextField(placeholder: "Entrez votre email", text: $viewModel.email, accessibilityId: "Champ email")
-                    .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .textContentType(.emailAddress)
-                    .accessibilityLabel("Champ email")
-                    .accessibilityHint("Saisissez votre adresse email")
-                    .onChange(of: viewModel.email) { _, newValue in
-                        // Synchroniser avec @AppStorage à chaque modification
-                        storedEmail = newValue
-                    }
+                StyledTextField(
+                    placeholder: "Entrez votre email",
+                    text: $localEmail,
+                    keyboardType: .emailAddress,
+                    textContentType: .emailAddress,
+                    autocapitalization: .never,
+                    disableAutocorrection: true,
+                    accessibilityId: "Champ email",
+                    accessibilityLabel: "Champ email",
+                    accessibilityHint: "Saisissez votre adresse email"
+                )
             }
             
             // Champ mot de passe
@@ -167,14 +154,14 @@ struct EmailSignInView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.gray)
                     
-                    StyledTextField(placeholder: "Entrez votre nom d'utilisateur", text: $viewModel.username, accessibilityId: "Champ nom d'utilisateur")
-                        .autocapitalization(.words)
-                        .disableAutocorrection(true)
-                        .textContentType(.username)
-                        .onChange(of: viewModel.username) { _, newValue in
-                            // Sauvegarder le nom d'utilisateur dans @AppStorage
-                            storedUsername = newValue
-                        }
+                    StyledTextField(
+                        placeholder: "Entrez votre nom d'utilisateur",
+                        text: $localUsername,
+                        textContentType: .username,
+                        autocapitalization: .words,
+                        disableAutocorrection: true,
+                        accessibilityId: "Champ nom d'utilisateur"
+                    )
                 }
                 
                 // Photo de profil (optionnel)
@@ -184,9 +171,10 @@ struct EmailSignInView: View {
                         .foregroundColor(.gray)
                     
                     // Utilisation d'un sélecteur d'image simple en attendant l'intégration complète
+                    let currentProfileImage = viewModel.profileImage
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         HStack {
-                            if let profileImage = viewModel.profileImage {
+                            if let profileImage = currentProfileImage {
                                 Image(uiImage: profileImage)
                                     .resizable()
                                     .scaledToFill()
@@ -207,7 +195,7 @@ struct EmailSignInView: View {
                             }
                             
                             Text("Sélectionner une photo")
-                                .foregroundColor(Color("Red"))
+                                .foregroundColor(Color("EventRed"))
                                 .padding(.leading, 10)
                         }
                     }
@@ -242,7 +230,7 @@ struct EmailSignInView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(isFormValid ? Color("Red") : Color.gray)
+                .background(isFormValid ? Color("EventRed") : Color.gray)
                 .cornerRadius(10)
             }
             .disabled(!isFormValid || viewModel.isLoading)
@@ -263,11 +251,20 @@ struct EmailSignInView: View {
     }
     
     private func handleAuthentication() {
-        // Synchroniser le mot de passe local avec le ViewModel juste avant l'authentification
-        viewModel.password = localPassword
-        
+        let email = localEmail
+        let password = localPassword
+        let username = localUsername
+        let signUp = isSignUpMode
+
         Task {
-            if isSignUpMode {
+            await Task.yield()
+            viewModel.email = email
+            viewModel.password = password
+            viewModel.username = username
+
+            print("🔑 handleAuthentication: isSignUpMode=\(signUp), profileImage=\(viewModel.profileImage != nil)")
+
+            if signUp {
                 await viewModel.signUp()
             } else {
                 await viewModel.signIn()

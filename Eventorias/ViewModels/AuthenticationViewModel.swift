@@ -87,36 +87,40 @@ class AuthenticationViewModel: ObservableObject, AuthenticationViewModelProtocol
         
         do {
             // Création du compte utilisateur
-            let authResult = try await authenticationService.signUp(email: email, password: password)
+            _ = try await authenticationService.signUp(email: email, password: password)
             
             // Mise à jour du profil utilisateur avec le nom d'utilisateur
             try await authenticationService.updateUserProfile(displayName: username, photoURL: nil)
             
             // Si une photo de profil est fournie, la télécharger
+            print("📷 SignUp: profileImage est \(profileImage != nil ? "présente" : "nil")")
             if let profileImage = profileImage, let imageData = profileImage.jpegData(compressionQuality: 0.7) {
+                print("📷 SignUp: Données image: \(imageData.count) octets")
                 do {
-                    // Utiliser l'ID utilisateur comme identifiant pour la photo
                     guard let userId = authenticationService.getCurrentUser()?.uid else { throw NSError(domain: "Authentication", code: 401, userInfo: [NSLocalizedDescriptionKey: "Utilisateur non connecté"]) }
-                    
-                    // Chemin dans le storage pour la photo de profil
+
                     let imagePath = "profile_images/\(userId).jpg"
-                    
-                    // Upload de l'image
+                    print("📷 SignUp: Upload vers \(imagePath)...")
+
                     let urlString = try await storageService.uploadImage(imageData, path: imagePath, metadata: nil)
-                    
-                    // Convertir la chaîne URL en URL
+                    print("📷 SignUp: Upload réussi, URL: \(urlString)")
+
                     guard let photoURL = URL(string: urlString) else { throw NSError(domain: "Storage", code: 400, userInfo: [NSLocalizedDescriptionKey: "URL invalide"]) }
-                    
-                    // Mise à jour du profil utilisateur avec l'URL de la photo
+
                     try await authenticationService.updateUserProfile(displayName: nil, photoURL: photoURL)
+                    print("📷 SignUp: Profil mis à jour avec photoURL")
                 } catch {
-                    print("Erreur lors du téléchargement de la photo de profil: \(error.localizedDescription)")
-                    // Ne pas bloquer l'inscription si l'upload de la photo échoue
+                    print("❌ SignUp: Erreur upload photo: \(error)")
                 }
+            } else {
+                print("📷 SignUp: Pas de photo à uploader")
             }
             
             userIsLoggedIn = true
             storeCredentialsExplicit(email: email, password: password)
+            if !username.isEmpty {
+                saveLastUsername(username)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -170,46 +174,37 @@ class AuthenticationViewModel: ObservableObject, AuthenticationViewModelProtocol
     }
 
     func loadStoredCredentials() {
-        // Pour faciliter les tests unitaires, nous détectons si nous sommes dans un environnement de test
-        let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-        
-        // Fonction de chargement des identifiants
-        let loadCredentials = {
-            // Charge l'email depuis UserDefaults ou Keychain
-            if let savedEmail = UserDefaults.standard.string(forKey: self.lastEmailKey) {
-                self.email = savedEmail
-            } else {
-                // Essayer de récupérer depuis le keychain si pas dans UserDefaults
-                do {
-                    let storedEmail = try self.keychainService.retrieve(for: self.emailAccount)
-                    self.email = storedEmail
-                } catch {
-                    self.email = ""
-                }
-            }
-            
-            // Charge le mot de passe depuis le Keychain
-            do {
-                let storedPassword = try self.keychainService.retrieve(for: self.passwordAccount)
-                self.password = storedPassword
-            } catch {
-                self.password = ""
-            }
-            
-            if let savedUsername = UserDefaults.standard.string(forKey: self.lastUsernameKey) {
-                self.username = savedUsername
-            }
+        Task { @MainActor in
+            await loadStoredCredentialsAsync()
         }
-        
-        // Exécuter de façon synchrone pour les tests, de façon asynchrone pour l'application
-        if isRunningTests {
-            loadCredentials()
+    }
+
+    func loadStoredCredentialsAsync() async {
+        // Charge l'email depuis UserDefaults ou Keychain
+        if let savedEmail = UserDefaults.standard.string(forKey: lastEmailKey), !savedEmail.isEmpty {
+            email = savedEmail
         } else {
-            // Reporter les modifications des propriétés @Published après le cycle de rendu SwiftUI
-            DispatchQueue.main.async(execute: loadCredentials)
+            do {
+                let storedEmail = try keychainService.retrieve(for: emailAccount)
+                email = storedEmail
+            } catch {
+                // Pas d'email stocké, garder la valeur actuelle
+            }
         }
-        
-        // Le mot de passe sera chargé uniquement si explicitement demandé par loadPasswordFromKeychain
+
+        // Charge le mot de passe depuis le Keychain
+        if password.isEmpty {
+            do {
+                let storedPassword = try keychainService.retrieve(for: passwordAccount)
+                password = storedPassword
+            } catch {
+                // Pas de mot de passe stocké
+            }
+        }
+
+        if let savedUsername = UserDefaults.standard.string(forKey: lastUsernameKey), !savedUsername.isEmpty {
+            username = savedUsername
+        }
     }
     
     func loadPasswordFromKeychain() {

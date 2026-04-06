@@ -38,33 +38,9 @@ final class ProfileViewModel: ObservableObject {
         self.authService = authService
         self.storageService = storageService
         
-        // Au lieu de charger immédiatement, nous configurons un observateur
-        setupAuthStateObserver()
     }
-    
+
     // MARK: - Methods
-    
-    /// Configure un observateur pour les changements d'état d'authentification
-    private func setupAuthStateObserver() {
-        print("🔄 ProfileViewModel: Configuration de l'observateur d'état d'authentification")
-        
-        // Observer les changements d'état d'authentification via FirebaseAuth directement
-        // Cela garantit que nous avons les dernières données utilisateur
-        Auth.auth().addStateDidChangeListener { [weak self] (auth, user) in
-            guard let self = self else { return }
-            
-            print("🔄 ProfileViewModel: Changement d'état d'authentification détecté")
-            if user != nil {
-                // Un délai court pour s'assurer que les données Firebase sont complètement chargées
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.loadUserProfile()
-                }
-            } else {
-                // Réinitialiser l'état du ViewModel quand l'utilisateur se déconnecte
-                self.resetUserProfile()
-            }
-        }
-    }
     
     /// Réinitialise les données du profil utilisateur
     private func resetUserProfile() {
@@ -79,47 +55,68 @@ final class ProfileViewModel: ObservableObject {
     func loadUserProfile() {
         print("📂 ProfileViewModel: Chargement du profil utilisateur")
         isLoading = true
-        
-        if let user = authService.getCurrentUser() {
-            print("👤 ProfileViewModel: Utilisateur trouvé, UID: \(user.uid)")
-            print("📋 ProfileViewModel: DisplayName brut: \(String(describing: user.displayName))")
-            
-            // Récupérer les données utilisateur depuis l'adaptateur
-            displayName = user.displayName ?? "Non défini"
-            email = user.email ?? ""
-            
-            // Utiliser la méthode getPhotoURL() du protocole pour récupérer l'URL de la photo
-            if let photoURL = user.getPhotoURL() {
-                avatarUrl = photoURL
-                print("📷 ProfileViewModel: Photo URL trouvée: \(photoURL)")
-            } else {
-                print("⚠️ ProfileViewModel: Aucune photo URL dans l'objet utilisateur, tentative de récupération depuis Storage...")
-                // Tenter de récupérer l'image depuis Storage en utilisant l'UID
-                let imagePath = "profile_images/\(user.uid).jpg"
-                print("🔍 ProfileViewModel: Recherche de l'image à: \(imagePath)")
-                
-                Task {
-                    do {
-                        let downloadURL = try await storageService.getDownloadURL(for: imagePath)
-                        await MainActor.run {
-                            self.avatarUrl = downloadURL
-                            print("✅ ProfileViewModel: Photo URL récupérée depuis Storage: \(downloadURL)")
-                        }
-                    } catch {
-                        await MainActor.run {
-                            print("❌ ProfileViewModel: Impossible de récupérer l'URL de la photo depuis Storage: \(error.localizedDescription)")
-                            // Essayer avec une autre extension
-                            self.tryAlternativeImageFormats(userID: user.uid)
-                        }
-                    }
-                }
-            }
-        } else {
+
+        // Recharger les données Firebase pour avoir les valeurs les plus récentes
+        // (displayName et photoURL peuvent ne pas être à jour après un signUp)
+        guard let firebaseUser = Auth.auth().currentUser else {
             print("⚠️ ProfileViewModel: Aucun utilisateur connecté")
             errorMessage = "Aucun utilisateur n'est actuellement connecté"
+            isLoading = false
+            return
         }
-        
-        isLoading = false
+
+        let userId = firebaseUser.uid
+
+        Task {
+            do {
+                try await firebaseUser.reload()
+            } catch {
+                print("⚠️ ProfileViewModel: Impossible de recharger le profil Firebase: \(error.localizedDescription)")
+            }
+
+            // Après reload, relire les valeurs depuis l'utilisateur rafraîchi
+            guard let refreshedUser = Auth.auth().currentUser else {
+                isLoading = false
+                return
+            }
+
+            displayName = refreshedUser.displayName ?? "Non défini"
+            email = refreshedUser.email ?? ""
+            print("👤 ProfileViewModel: DisplayName: \(displayName), Email: \(email)")
+
+            if let photoURL = refreshedUser.photoURL {
+                avatarUrl = photoURL
+                print("📷 ProfileViewModel: Photo URL trouvée: \(photoURL)")
+                isLoading = false
+            } else {
+                // photoURL peut être nil si le signUp vient de finir et le cache Firebase
+                // n'est pas encore synchronisé — retry après un délai
+                print("⚠️ ProfileViewModel: photoURL nil, retry après délai...")
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                try? await firebaseUser.reload()
+
+                if let retryUser = Auth.auth().currentUser, let photoURL = retryUser.photoURL {
+                    avatarUrl = photoURL
+                    print("📷 ProfileViewModel: Photo URL trouvée après retry: \(photoURL)")
+                    isLoading = false
+                    return
+                }
+
+                // Fallback : chercher directement dans Storage
+                print("⚠️ ProfileViewModel: Toujours pas de photoURL, fallback Storage...")
+                let imagePath = "profile_images/\(userId).jpg"
+
+                do {
+                    let downloadURL = try await storageService.getDownloadURL(for: imagePath)
+                    self.avatarUrl = downloadURL
+                    print("✅ ProfileViewModel: Photo URL récupérée depuis Storage: \(downloadURL)")
+                } catch {
+                    print("❌ ProfileViewModel: Impossible de récupérer l'URL de la photo: \(error.localizedDescription)")
+                    self.tryAlternativeImageFormats(userID: userId)
+                }
+                isLoading = false
+            }
+        }
     }
     
     /// Essaie de récupérer l'image avec différents formats
@@ -160,6 +157,41 @@ final class ProfileViewModel: ObservableObject {
     }
     #endif
     
+    /// Met à jour la photo de profil de l'utilisateur
+    func updateProfilePhoto(_ image: UIImage) async {
+        isLoading = true
+        defer { isLoading = false }
+
+        guard let firebaseUser = Auth.auth().currentUser else {
+            errorMessage = "Aucun utilisateur connecté"
+            return
+        }
+
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            errorMessage = "Impossible de convertir l'image"
+            return
+        }
+
+        let imagePath = "profile_images/\(firebaseUser.uid).jpg"
+
+        do {
+            let urlString = try await storageService.uploadImage(imageData, path: imagePath, metadata: nil)
+            print("📷 ProfileViewModel: Photo uploadée: \(urlString)")
+
+            guard let photoURL = URL(string: urlString) else {
+                errorMessage = "URL de photo invalide"
+                return
+            }
+
+            try await authService.updateUserProfile(displayName: nil, photoURL: photoURL)
+            self.avatarUrl = photoURL
+            print("📷 ProfileViewModel: Profil mis à jour avec la photo")
+        } catch {
+            errorMessage = "Erreur lors de l'upload de la photo: \(error.localizedDescription)"
+            print("❌ ProfileViewModel: Erreur upload photo: \(error)")
+        }
+    }
+
     /// Met à jour les préférences de notifications
     /// - Parameter enabled: Booléen indiquant si les notifications doivent être activées
     func updateNotificationPreferences(enabled: Bool) {
@@ -171,11 +203,7 @@ final class ProfileViewModel: ObservableObject {
     /// Met à jour la référence au AuthenticationViewModel
     /// - Parameter viewModel: Nouvelle référence au AuthenticationViewModel
     func updateAuthenticationViewModel(_ viewModel: any AuthenticationViewModelProtocol) {
-        print("🔄 ProfileViewModel: Mise à jour de la référence AuthViewModel")
         self.authViewModel = viewModel
-        
-        // Recharger les données du profil après la mise à jour de la référence
-        loadUserProfile()
     }
     
     /// Met à jour le nom d'affichage de l'utilisateur

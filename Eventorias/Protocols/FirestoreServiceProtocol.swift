@@ -58,13 +58,13 @@ class FirebaseFirestoreService: FirestoreServiceProtocol {
     func createEvent(_ event: Event) async throws {
         // ✅ Unwrapping sécurisé avec valeur par défaut
         let eventRef = db.collection("events").document(event.id ?? UUID().uuidString)
-        try await eventRef.setData(from: event)
+        try eventRef.setData(from: event)
     }
     
     func updateEvent(_ event: Event) async throws {
         // ✅ Unwrapping sécurisé avec valeur par défaut
         let eventRef = db.collection("events").document(event.id ?? UUID().uuidString)
-        try await eventRef.setData(from: event)
+        try eventRef.setData(from: event)
     }
     
     func getEventDocument(eventID: String) async throws -> DocumentSnapshotProtocol {
@@ -84,9 +84,9 @@ class FirebaseFirestoreService: FirestoreServiceProtocol {
     
     func createInvitation(_ invitation: Invitation) async throws {
         let invitationRef = db.collection("invitations").document(invitation.id ?? UUID().uuidString)
-        try await invitationRef.setData(from: invitation)
+        try invitationRef.setData(from: invitation)
     }
-    
+
     func updateInvitation(_ invitation: Invitation) async throws {
         guard let id = invitation.id else {
             throw NSError(
@@ -95,9 +95,9 @@ class FirebaseFirestoreService: FirestoreServiceProtocol {
                 userInfo: [NSLocalizedDescriptionKey: "Invitation ID is required"]
             )
         }
-        
+
         let invitationRef = db.collection("invitations").document(id)
-        try await invitationRef.setData(from: invitation, merge: true)
+        try invitationRef.setData(from: invitation, merge: true)
     }
     
     func deleteInvitation(_ invitationId: String) async throws {
@@ -107,23 +107,23 @@ class FirebaseFirestoreService: FirestoreServiceProtocol {
     
     func getEventInvitations(eventId: String) async throws -> [Invitation] {
         let query = db.collection("invitations")
-            .whereField("eventId", isEqualTo: eventId)
-        
+            .whereField("event_id", isEqualTo: eventId)
+
         let querySnapshot = try await query.getDocuments()
         var invitations: [Invitation] = []
-        
+
         for document in querySnapshot.documents {
             if let invitation = try? document.data(as: Invitation.self) {
                 invitations.append(invitation)
             }
         }
-        
+
         return invitations
     }
-    
+
     func getUserInvitations(userId: String) async throws -> [Invitation] {
         let query = db.collection("invitations")
-            .whereField("inviteeId", isEqualTo: userId)
+            .whereField("invitee_id", isEqualTo: userId)
         
         let querySnapshot = try await query.getDocuments()
         var invitations: [Invitation] = []

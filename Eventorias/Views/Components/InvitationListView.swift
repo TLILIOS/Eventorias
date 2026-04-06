@@ -184,7 +184,7 @@ struct InvitationCard: View {
             }
         }
         .padding(8)
-        .background(Color("DarkGray"))
+        .background(Color("EventDarkGray"))
         .cornerRadius(12)
     }
 }

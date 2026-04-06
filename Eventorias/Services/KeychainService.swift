@@ -101,7 +101,7 @@ final class KeychainService: KeychainServiceProtocol {
         log("Mise à jour des données pour le compte: \(account)")
         
         // Tenter la mise à jour
-        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         
         // Si l'entrée n'existe pas, la créer
         if status == errSecItemNotFound {

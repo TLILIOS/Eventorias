@@ -14,7 +14,7 @@ struct EventDetailsView: View {
     @StateObject private var viewModel = AppDependencyContainer.shared.makeEventDetailsViewModel()
     @State private var isSharePresented: Bool = false
     let eventID: String
-    var backgroundColor: Color = Color("DarkGray")
+    var backgroundColor: Color = Color("EventDarkGray")
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -62,7 +62,7 @@ struct EventDetailsView: View {
                     }
                     .foregroundStyle(.white)
                     .padding(10)
-                    .background(Color("Red"))
+                    .background(Color("EventRed"))
                     .cornerRadius(8)
                 }
             }
@@ -297,7 +297,7 @@ struct EventDetailsView: View {
                                 VStack(spacing: 8) {
                                     Image(systemName: "exclamationmark.triangle")
                                         .font(.system(size: 24))
-                                        .foregroundColor(Color("Red"))
+                                        .foregroundColor(Color("EventRed"))
                                     
                                     if !viewModel.errorMessage.isEmpty {
                                         Text(viewModel.errorMessage)
@@ -320,7 +320,7 @@ struct EventDetailsView: View {
                                             .font(.caption2)
                                             .padding(.vertical, 4)
                                             .padding(.horizontal, 8)
-                                            .background(Color("Red").opacity(0.8))
+                                            .background(Color("EventRed").opacity(0.8))
                                             .foregroundColor(.white)
                                             .cornerRadius(4)
                                     }
@@ -366,7 +366,7 @@ struct EventDetailsView: View {
                                     .font(.caption2)
                                     .padding(.vertical, 4)
                                     .padding(.horizontal, 8)
-                                    .background(Color("Red").opacity(0.8))
+                                    .background(Color("EventRed").opacity(0.8))
                                     .foregroundColor(.white)
                                     .cornerRadius(4)
                             }
@@ -383,7 +383,7 @@ struct EventDetailsView: View {
                         Spacer()
                         Image(systemName: "mappin.circle.fill")
                             .font(.system(size: 32))
-                            .foregroundStyle(Color("Red"))
+                            .foregroundStyle(Color("EventRed"))
                             .background(
                                 Circle()
                                     .fill(.white)
