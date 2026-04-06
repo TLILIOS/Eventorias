@@ -126,17 +126,15 @@ final class ProfileViewModel: ObservableObject {
     private func tryAlternativeImageFormats(userID: String) -> Task<Void, Never> {
         let extensions = ["png", "jpeg", "jpg"]
         
-        return Task {
+        return Task { @MainActor in
             for ext in extensions {
                 let imagePath = "profile_images/\(userID).\(ext)"
                 print("🔍 ProfileViewModel: Essai avec l'extension \(ext): \(imagePath)")
-                
+
                 do {
                     let downloadURL = try await storageService.getDownloadURL(for: imagePath)
-                    await MainActor.run {
-                        self.avatarUrl = downloadURL
-                        print("✅ ProfileViewModel: Photo trouvée avec extension \(ext): \(downloadURL)")
-                    }
+                    self.avatarUrl = downloadURL
+                    print("✅ ProfileViewModel: Photo trouvée avec extension \(ext): \(downloadURL)")
                     return
                 } catch {
                     print("⚠️ ProfileViewModel: Échec avec extension \(ext): \(error.localizedDescription)")
