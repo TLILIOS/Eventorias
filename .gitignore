@@ -86,5 +86,12 @@ iOSInjectionProject/
 # macOS
 .DS_Store
 
+# Build artifacts
+.build/
+
+# Test results
+*.xcresult
+TestResults.xcresult
+
 # Configuration files with sensitive information
 Eventorias/Config/Secrets.swift
